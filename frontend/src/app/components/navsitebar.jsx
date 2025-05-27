@@ -10,7 +10,7 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
       {/* Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-4 left-4 z-50 bg-gray-800 hover:bg-gray-700 text-white p-3 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200"
+        className="fixed top-4 left-4 z-50 bg-[#316fb7] hover:bg-[#7a98bb] text-white p-3 rounded-md focus:outline-none focus:ring-0 transition-colors duration-200"
         aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
       >
         <svg
@@ -36,18 +36,17 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
           )}
         </svg>
       </button>
-
       {/* Overlay for mobile */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+          className="fixed inset-0 bg-white bg-opacity-50 z-[-1] "
           onClick={() => setIsOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-screen bg-gray-800 text-white flex flex-col transition-all duration-300 z-40 ${
+        className={`fixed top-0 left-0 h-screen bg-[#316fb7] text-white flex flex-col transition-all duration-300 z-40 ${
           isOpen ? "w-64" : "w-16"
         }`}
       >
@@ -71,7 +70,7 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
             <div>
               <button
                 onClick={() => setIsDashboardOpen(!isDashboardOpen)}
-                className="w-full flex items-center p-3 rounded-lg transition-all duration-200 hover:bg-gray-700 text-left"
+                className="w-full flex items-center p-3 rounded-lg transition-all duration-200 hover:bg-[#7a98bb] text-left"
               >
                 <span
                   className={`material-icons text-xl transition-all duration-300 ${
@@ -111,13 +110,13 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
                 >
                   <Link
                     href="/WordPress"
-                    className="block p-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors duration-200"
+                    className="block p-2 text-sm text-gray-300 hover:text-white hover:bg-[#7a98bb] rounded transition-colors duration-200"
                   >
                     WordPress
                   </Link>
                   <Link
-                    href="/SupportPal"
-                    className="block p-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors duration-200"
+                    href="/Supportpal"
+                    className="block p-2 text-sm text-gray-300 hover:text-white hover:bg-[#7a98bb] rounded transition-colors duration-200"
                   >
                     SupportPal
                   </Link>
@@ -128,13 +127,7 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
             <NavLink
               href="/admin"
               icon="people"
-              label="Users"
-              isOpen={isOpen}
-            />
-            <NavLink
-              href="/settings"
-              icon="settings"
-              label="Settings"
+              label="Admin"
               isOpen={isOpen}
             />
           </div>
@@ -143,7 +136,7 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
         {/* Footer */}
         <div className="p-4 border-t border-gray-700">
           <NavLink
-            href="/logout"
+            href="/login"
             icon="logout"
             label="Logout"
             isOpen={isOpen}
@@ -158,7 +151,7 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
 // Extracted NavLink component for better maintainability
 function NavLink({ href, icon, label, isOpen, className = "" }) {
   const baseClasses =
-    "flex items-center p-3 rounded-lg transition-all duration-200 hover:bg-gray-700";
+    "flex items-center p-3 rounded-lg transition-all duration-200 hover:bg-[#7a98bb]";
   const classes = className ? `${baseClasses} ${className}` : baseClasses;
 
   return (
