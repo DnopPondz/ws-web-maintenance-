@@ -54,7 +54,7 @@ const initialSites = [
   },
 ];
 
-export default function WpDashboard() {
+const WpDashboard = () => {
   const [sites, setSites] = useState(initialSites);
   const [expandedSites, setExpandedSites] = useState({});
   const [openDropdowns, setOpenDropdowns] = useState({});
@@ -728,3 +728,5 @@ export default function WpDashboard() {
     </div>
   );
 }
+
+export default WpDashboard;
