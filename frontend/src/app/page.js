@@ -4,7 +4,7 @@ import Link from "next/link";
 
 const Home = () => {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 rounded-4xl shadow-gray-500 shadow-xl  from-slate-50 to-slate-100 p-8">
+    <div className="flex flex-col items-center justify-center min-h-full bg-gray-100 rounded-4xl shadow-gray-500 shadow-xl  from-slate-50 to-slate-100 p-8">
       <div className="text-center mb-12">
         <h1 className="text-5xl font-bold text-gray-800 mb-2">
           Welcome to WS Maintenance

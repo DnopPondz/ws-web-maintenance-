@@ -32,7 +32,13 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased ${shouldShowSidebar ? 'flex' : ''}`}
+        className={`
+          ${geistSans.variable} 
+          ${geistMono.variable} 
+          antialiased 
+          ${shouldShowSidebar ? 'flex' : ''} 
+          ${!shouldShowSidebar ? 'overflow-hidden' : ''}
+        `}
       >
         {/* แสดง Sidebar เฉพาะหน้าที่ต้องการ */}
         {shouldShowSidebar && (
@@ -43,7 +49,7 @@ export default function RootLayout({ children }) {
           className={`transition-all duration-300 p-8 bg-white min-h-screen w-full ${
             shouldShowSidebar 
               ? (sidebarOpen ? 'ml-64' : 'ml-16')
-              : '' // หน้า Login ไม่มี margin-left
+              : ''
           }`}
         >
           {children}
