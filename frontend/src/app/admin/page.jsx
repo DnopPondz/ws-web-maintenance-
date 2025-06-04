@@ -1,15 +1,11 @@
-"use client"
-import { useState } from "react";
+"use client";
+import { useEffect, useState } from "react";
 import { Plus, Edit, Trash2, Eye, EyeOff } from "lucide-react";
-
+import axios from "../lib/api.js";
 
 const UserManagePage = () => {
-  const [users, setUsers] = useState([
-    { id: 1, username: "admin", email: "admin@example.com", role: "Admin", status: "Active" },
-    { id: 2, username: "john_doe", email: "john@example.com", role: "User", status: "Active" },
-    { id: 3, username: "jane_smith", email: "jane@example.com", role: "User", status: "Inactive" }
-  ]);
-
+  const [users, setUsers] = useState([]);
+  const [error, setError] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState("add"); // add, edit, delete
   const [selectedUser, setSelectedUser] = useState(null);
@@ -19,21 +15,47 @@ const UserManagePage = () => {
     email: "",
     password: "",
     role: "User",
-    status: "Active"
+    status: "Active",
   });
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const token = localStorage.getItem("accessToken");
+        const response = await axios.get("/users", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        setUsers(response.data.users);
+      } catch (err) {
+        setError(err.response?.data?.message || "Error fetching users");
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
+  if (error) return <p>Error: {error}</p>;
 
   const openModal = (type, user = null) => {
     setModalType(type);
     setSelectedUser(user);
     if (type === "add") {
-      setFormData({ username: "", email: "", password: "", role: "User", status: "Active" });
+      setFormData({
+        username: "",
+        email: "",
+        password: "",
+        role: "User",
+        status: "Active",
+      });
     } else if (type === "edit" && user) {
-      setFormData({ 
-        username: user.username, 
-        email: user.email, 
-        password: "", 
-        role: user.role, 
-        status: user.status 
+      setFormData({
+        username: user.username,
+        email: user.email,
+        password: "",
+        role: user.role,
+        status: user.status,
       });
     }
     setShowModal(true);
@@ -49,22 +71,28 @@ const UserManagePage = () => {
     e.preventDefault();
     if (modalType === "add") {
       const newUser = {
-        id: Math.max(...users.map(u => u.id)) + 1,
-        ...formData
+        id: Math.max(...users.map((u) => u.id)) + 1,
+        ...formData,
       };
       setUsers([...users, newUser]);
     } else if (modalType === "edit") {
-      setUsers(users.map(user => 
-        user.id === selectedUser.id 
-          ? { ...user, ...formData, password: formData.password || user.password }
-          : user
-      ));
+      setUsers(
+        users.map((user) =>
+          user.id === selectedUser.id
+            ? {
+                ...user,
+                ...formData,
+                password: formData.password || user.password,
+              }
+            : user
+        )
+      );
     }
     closeModal();
   };
 
   const handleDelete = () => {
-    setUsers(users.filter(user => user.id !== selectedUser.id));
+    setUsers(users.filter((user) => user.id !== selectedUser.id));
     closeModal();
   };
 
@@ -90,25 +118,46 @@ const UserManagePage = () => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Username</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Username
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Email
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Role
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {users.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50 transition-colors duration-150">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{user.username}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{user.email}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{user.role}</td>
+                <tr
+                  key={user.id}
+                  className="hover:bg-gray-50 transition-colors duration-150"
+                >
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                    {user.username}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {user.email}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {user.role}
+                  </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      user.status === "Active" 
-                        ? "bg-green-100 text-green-800" 
-                        : "bg-red-100 text-red-800"
-                    }`}>
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        user.status === "Active"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
                       {user.status}
                     </span>
                   </td>
@@ -137,14 +186,18 @@ const UserManagePage = () => {
 
       {/* Modal */}
       {showModal && (
-        <div className={`absolute inset-0 bg-white bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300 ${
-          showModal ? 'opacity-100' : 'opacity-0'
-        }`}>
-          <div className={`bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4 transform transition-all duration-300 ${
-            showModal 
-              ? 'scale-100 translate-y-0 opacity-100' 
-              : 'scale-95 translate-y-4 opacity-0'
-          }`}>
+        <div
+          className={`absolute inset-0 bg-white bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300 ${
+            showModal ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <div
+            className={`bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4 transform transition-all duration-300 ${
+              showModal
+                ? "scale-100 translate-y-0 opacity-100"
+                : "scale-95 translate-y-4 opacity-0"
+            }`}
+          >
             <h2 className="text-lg font-semibold mb-6 text-gray-800">
               {modalType === "add" && "Add New User"}
               {modalType === "edit" && "Edit User"}
@@ -154,7 +207,8 @@ const UserManagePage = () => {
             {modalType === "delete" ? (
               <div>
                 <p className="text-gray-600 mb-6">
-                  Are you sure you want to delete user "{selectedUser?.username}"?
+                  Are you sure you want to delete user "{selectedUser?.username}
+                  "?
                 </p>
                 <div className="flex gap-3 justify-end">
                   <button
@@ -174,7 +228,9 @@ const UserManagePage = () => {
             ) : (
               <div>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Username
+                  </label>
                   <input
                     type="text"
                     name="username"
@@ -185,7 +241,9 @@ const UserManagePage = () => {
                   />
                 </div>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email
+                  </label>
                   <input
                     type="email"
                     name="email"
@@ -197,7 +255,9 @@ const UserManagePage = () => {
                 </div>
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {modalType === "edit" ? "New Password (leave blank to keep current)" : "Password"}
+                    {modalType === "edit"
+                      ? "New Password (leave blank to keep current)"
+                      : "Password"}
                   </label>
                   <div className="relative">
                     <input
@@ -218,7 +278,9 @@ const UserManagePage = () => {
                   </div>
                 </div>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Role
+                  </label>
                   <select
                     name="role"
                     value={formData.role}
@@ -230,7 +292,9 @@ const UserManagePage = () => {
                   </select>
                 </div>
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Status
+                  </label>
                   <select
                     name="status"
                     value={formData.status}

@@ -21,3 +21,9 @@ export async function logoutUser(refreshToken) {
     }
   });
 }
+
+const instance = axios.create({
+  baseURL: 'http://localhost:5000/api', // backend API URL
+});
+
+export default instance;

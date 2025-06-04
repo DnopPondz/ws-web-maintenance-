@@ -200,40 +200,28 @@ router.post('/refresh', (req, res) => {
   });
 });
 
-// Protected Route ตัวอย่าง - ดูข้อมูล Profile
-router.get('/profile', authenticateToken, (req, res) => {
-  res.json({
-    message: 'Profile accessed successfully',
-    user: req.user
-  });
-});
-
-// Protected Route ตัวอย่าง - อัพเดท Profile
-router.put('/profile', authenticateToken, async (req, res) => {
-  const { firstname, lastname } = req.body;
-  const userId = req.user.id;
-
+router.get('/users', authenticateToken, async (req, res) => {
   try {
-    const { error } = await supabase
+    // ตรวจสอบเฉพาะ admin (เอาออกได้ถ้าไม่จำกัดสิทธิ์)
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Admins only.' });
+    }
+
+    const { data: users, error } = await supabase
       .from('users')
-      .update({ firstname, lastname })
-      .eq('id', userId);
+      .select('id, username, firstname, lastname, email, status, role'); // เพิ่ม email
 
     if (error) throw error;
 
-    res.json({
-      message: 'Profile updated successfully',
-      user: {
-        ...req.user,
-        firstname,
-        lastname
-      }
-    });
+    res.status(200).json({ users });
   } catch (err) {
-    console.error('Profile update error:', err.message);
-    res.status(500).json({ message: 'Profile update failed.' });
+    console.error('Fetch users error:', err.message);
+    res.status(500).json({ message: 'Failed to fetch users.' });
   }
 });
+
+
+
 
 // API สำหรับ Logout (ทำลาย token ใน client-side)
 router.post('/logout', authenticateToken, (req, res) => {
