@@ -1,13 +1,36 @@
+"use client"
+
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+
 
 
 const Home = () => {
+  
+   const router = useRouter();
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    const storedUser = localStorage.getItem('user');
+
+    if (!token || !storedUser) {
+      router.push('/login');
+    } else {
+      setUser(JSON.parse(storedUser));
+    }
+  }, []);
+
+  if (!user) return <p>Loading...</p>;
+
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-full bg-gray-100 rounded-4xl shadow-gray-500 shadow-xl  from-slate-50 to-slate-100 p-8">
+    <div className="flex flex-col items-center justify-center min-h-full  bg-gray-100   from-slate-50 to-slate-100 ">
       <div className="text-center mb-12">
         <h1 className="text-5xl font-bold text-gray-800 mb-2">
-          Welcome to WS Maintenance
+          Welcome {user.firstname}!
         </h1>
         <p className="text-gray-600 text-lg">
           Choose your service platform
@@ -58,12 +81,6 @@ const Home = () => {
             </div>
           </button>
         </Link>
-      </div>
-      
-      <div className="mt-16 text-center">
-        <p className="text-gray-400 text-sm">
-          ------------------------------------------
-        </p>
       </div>
     </div>
   );

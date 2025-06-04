@@ -73,7 +73,7 @@ const UserManagePage = () => {
   };
 
   return (
-    <div className="min-h-full bg-gray-100 rounded-4xl shadow-gray-500 shadow-xl p-6 relative ">
+    <div className="min-h-full bg-gray-100 p-6 relative ">
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-gray-800">User Management</h1>
