@@ -7,36 +7,36 @@ const UserManagePage = () => {
   const [users, setUsers] = useState([]);
   const [error, setError] = useState("");
   const [showModal, setShowModal] = useState(false);
-  const [modalType, setModalType] = useState("add"); // add, edit, delete
+  const [modalType, setModalType] = useState("add");
   const [selectedUser, setSelectedUser] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     username: "",
     email: "",
     password: "",
+    firstname: "",
+    lastname: "",
     role: "User",
     status: "Active",
   });
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const token = localStorage.getItem("accessToken");
-        const response = await axios.get("/users", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        setUsers(response.data.users);
-      } catch (err) {
-        setError(err.response?.data?.message || "Error fetching users");
-      }
-    };
+  const fetchUsers = async () => {
+    try {
+      const token = localStorage.getItem("accessToken");
+      const response = await axios.get("/users", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setUsers(response.data.users);
+    } catch (err) {
+      setError(err.response?.data?.message || "Error fetching users");
+    }
+  };
 
+  useEffect(() => {
     fetchUsers();
   }, []);
-
-  if (error) return <p>Error: {error}</p>;
 
   const openModal = (type, user = null) => {
     setModalType(type);
@@ -46,6 +46,8 @@ const UserManagePage = () => {
         username: "",
         email: "",
         password: "",
+        firstname: "",
+        lastname: "",
         role: "User",
         status: "Active",
       });
@@ -54,6 +56,8 @@ const UserManagePage = () => {
         username: user.username,
         email: user.email,
         password: "",
+        firstname: user.firstname || "",
+        lastname: user.lastname || "",
         role: user.role,
         status: user.status,
       });
@@ -67,15 +71,38 @@ const UserManagePage = () => {
     setShowPassword(false);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (modalType === "add") {
-      const newUser = {
-        id: Math.max(...users.map((u) => u.id)) + 1,
-        ...formData,
-      };
-      setUsers([...users, newUser]);
+      try {
+        const token = localStorage.getItem("accessToken");
+
+        await axios.post(
+          "/register",
+          {
+            username: formData.username,
+            email: formData.email,
+            password: formData.password,
+            firstname: formData.firstname,
+            lastname: formData.lastname,
+            role: formData.role.toLowerCase(),
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        await fetchUsers();
+        closeModal();
+      } catch (err) {
+        console.error("Register error:", err.response?.data || err.message);
+        alert(err.response?.data?.message || "Registration failed.");
+      }
     } else if (modalType === "edit") {
+      // TODO: call API for editing
       setUsers(
         users.map((user) =>
           user.id === selectedUser.id
@@ -87,8 +114,8 @@ const UserManagePage = () => {
             : user
         )
       );
+      closeModal();
     }
-    closeModal();
   };
 
   const handleDelete = () => {
@@ -100,8 +127,10 @@ const UserManagePage = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  if (error) return <p>Error: {error}</p>;
+
   return (
-    <div className="min-h-full bg-gray-100 p-6 relative ">
+    <div className="min-h-full bg-gray-100 p-6 relative">
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-gray-800">User Management</h1>
@@ -186,18 +215,8 @@ const UserManagePage = () => {
 
       {/* Modal */}
       {showModal && (
-        <div
-          className={`absolute inset-0 bg-white bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300 ${
-            showModal ? "opacity-100" : "opacity-0"
-          }`}
-        >
-          <div
-            className={`bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4 transform transition-all duration-300 ${
-              showModal
-                ? "scale-100 translate-y-0 opacity-100"
-                : "scale-95 translate-y-4 opacity-0"
-            }`}
-          >
+        <div className="absolute inset-0 bg-white bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
             <h2 className="text-lg font-semibold mb-6 text-gray-800">
               {modalType === "add" && "Add New User"}
               {modalType === "edit" && "Edit User"}
@@ -213,20 +232,46 @@ const UserManagePage = () => {
                 <div className="flex gap-3 justify-end">
                   <button
                     onClick={closeModal}
-                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200"
+                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleDelete}
-                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transform hover:scale-105 transition-all duration-200"
+                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transform hover:scale-105"
                   >
                     Delete
                   </button>
                 </div>
               </div>
             ) : (
-              <div>
+              <form onSubmit={handleSubmit}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Firstname
+                  </label>
+                  <input
+                    type="text"
+                    name="firstname"
+                    value={formData.firstname}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Lastname
+                  </label>
+                  <input
+                    type="text"
+                    name="lastname"
+                    value={formData.lastname}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Username
@@ -236,7 +281,7 @@ const UserManagePage = () => {
                     name="username"
                     value={formData.username}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     required
                   />
                 </div>
@@ -249,7 +294,7 @@ const UserManagePage = () => {
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     required
                   />
                 </div>
@@ -265,13 +310,13 @@ const UserManagePage = () => {
                       name="password"
                       value={formData.password}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 transition-all duration-200"
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg pr-10 focus:ring-2 focus:ring-blue-500"
                       required={modalType === "add"}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
                     >
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
@@ -285,7 +330,7 @@ const UserManagePage = () => {
                     name="role"
                     value={formData.role}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="User">User</option>
                     <option value="Admin">Admin</option>
@@ -299,7 +344,7 @@ const UserManagePage = () => {
                     name="status"
                     value={formData.status}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
@@ -309,22 +354,18 @@ const UserManagePage = () => {
                   <button
                     type="button"
                     onClick={closeModal}
-                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200"
+                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
                     Cancel
                   </button>
                   <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handleSubmit(e);
-                    }}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transform hover:scale-105 transition-all duration-200"
+                    type="submit"
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transform hover:scale-105"
                   >
                     {modalType === "add" ? "Add User" : "Save Changes"}
                   </button>
                 </div>
-              </div>
+              </form>
             )}
           </div>
         </div>

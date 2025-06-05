@@ -10,22 +10,22 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-change-this'
 
 // Register API
 router.post('/register', async (req, res) => {
-  const { username, password, firstname, lastname, role } = req.body;
+  const { username, email, password, firstname, lastname, role } = req.body;
 
-  if (!username || !password) {
-    return res.status(400).json({ message: 'Username and password are required.' });
+  if (!username || !email || !password) {
+    return res.status(400).json({ message: 'Username, email, and password are required.' });
   }
 
   try {
-    // Check if username exists
-    const { data: existingUser } = await supabase
+    // Check if username or email already exists
+    const { data: existingUser, error: checkError } = await supabase
       .from('users')
       .select('id')
-      .eq('username', username)
+      .or(`username.eq.${username},email.eq.${email}`)
       .single();
 
     if (existingUser) {
-      return res.status(409).json({ message: 'Username already exists.' });
+      return res.status(409).json({ message: 'Username or email already exists.' });
     }
 
     // Hash password
@@ -39,20 +39,24 @@ router.post('/register', async (req, res) => {
     const { error } = await supabase.from('users').insert([{
       id: newId,
       username,
+      email,
       password: hashedPassword,
       firstname,
       lastname,
       role: role || 'user',
+      created_at: new Date().toISOString(), // ISO timestamp
+      status: 'active' // or use default if applicable
     }]);
 
     if (error) throw error;
 
-    res.status(201).json({ message: 'User registered', id: newId });
+    res.status(201).json({ message: 'User registered successfully', id: newId });
   } catch (err) {
     console.error('Register error:', err.message);
     res.status(500).json({ message: 'Registration failed.', error: err.message });
   }
 });
+
 
 // Login API with JWT
 router.post('/login', async (req, res) => {
