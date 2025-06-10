@@ -72,56 +72,84 @@ const UserManagePage = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
+  const token = localStorage.getItem("accessToken");
 
-    if (modalType === "add") {
-      try {
-        const token = localStorage.getItem("accessToken");
-
-        await axios.post(
-          "/register",
-          {
-            username: formData.username,
-            email: formData.email,
-            password: formData.password,
-            firstname: formData.firstname,
-            lastname: formData.lastname,
-            role: formData.role.toLowerCase(),
+  if (modalType === "add") {
+    try {
+      await axios.post(
+        "/register",
+        {
+          username: formData.username,
+          email: formData.email,
+          password: formData.password,
+          firstname: formData.firstname,
+          lastname: formData.lastname,
+          role: formData.role.toLowerCase(),
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
           },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        await fetchUsers();
-        closeModal();
-      } catch (err) {
-        console.error("Register error:", err.response?.data || err.message);
-        alert(err.response?.data?.message || "Registration failed.");
-      }
-    } else if (modalType === "edit") {
-      // TODO: call API for editing
-      setUsers(
-        users.map((user) =>
-          user.id === selectedUser.id
-            ? {
-                ...user,
-                ...formData,
-                password: formData.password || user.password,
-              }
-            : user
-        )
+        }
       );
-      closeModal();
-    }
-  };
 
-  const handleDelete = () => {
-    setUsers(users.filter((user) => user.id !== selectedUser.id));
-    closeModal();
-  };
+      await fetchUsers();
+      closeModal();
+    } catch (err) {
+      console.error("Register error:", err.response?.data || err.message);
+      alert(err.response?.data?.message || "Registration failed.");
+    }
+  } else if (modalType === "edit") {
+    try {
+      const payload = {
+        id: selectedUser.id,
+        username: formData.username,
+        email: formData.email,
+        firstname: formData.firstname,
+        lastname: formData.lastname,
+        role: formData.role.toLowerCase(),
+        status: formData.status,
+      };
+
+      // ส่ง password ไปเฉพาะตอนที่ผู้ใช้ใส่ค่ามา
+      if (formData.password.trim() !== "") {
+        payload.password = formData.password;
+      }
+
+      await axios.put("/edit", payload, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      await fetchUsers();
+      closeModal();
+    } catch (err) {
+      console.error("Edit error:", err.response?.data || err.message);
+      alert(err.response?.data?.message || "Update failed.");
+    }
+  }
+};
+
+
+  const handleDelete = async () => {
+  try {
+    const token = localStorage.getItem("accessToken");
+
+    await axios.delete(`/del/${selectedUser.id}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    await fetchUsers();  // โหลดข้อมูลใหม่หลังลบ
+    closeModal();        // ปิด modal
+  } catch (err) {
+    console.error("Delete error:", err.response?.data || err.message);
+    alert(err.response?.data?.message || "Delete failed.");
+  }
+};
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -136,7 +164,7 @@ const UserManagePage = () => {
           <h1 className="text-2xl font-bold text-gray-800">User Management</h1>
           <button
             onClick={() => openModal("add")}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors duration-200"
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors duration-200 cursor-pointer"
           >
             <Plus size={16} />
             Add User
@@ -194,13 +222,13 @@ const UserManagePage = () => {
                     <div className="flex gap-2">
                       <button
                         onClick={() => openModal("edit", user)}
-                        className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50 transition-all duration-200"
+                        className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50 transition-all duration-200 cursor-pointer"
                       >
                         <Edit size={16} />
                       </button>
                       <button
                         onClick={() => openModal("delete", user)}
-                        className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition-all duration-200"
+                        className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition-all duration-200 cursor-pointer"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -232,13 +260,13 @@ const UserManagePage = () => {
                 <div className="flex gap-3 justify-end">
                   <button
                     onClick={closeModal}
-                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleDelete}
-                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transform hover:scale-105"
+                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transform hover:scale-105 cursor-pointer"
                   >
                     Delete
                   </button>
@@ -316,7 +344,7 @@ const UserManagePage = () => {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 cursor-pointer"
                     >
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
@@ -354,13 +382,13 @@ const UserManagePage = () => {
                   <button
                     type="button"
                     onClick={closeModal}
-                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transform hover:scale-105"
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transform hover:scale-105 cursor-pointer"
                   >
                     {modalType === "add" ? "Add User" : "Save Changes"}
                   </button>

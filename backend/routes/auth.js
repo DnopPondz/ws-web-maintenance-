@@ -57,6 +57,48 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// edit user data
+router.put("/edit", async (req, res) => {
+  const { id, username, email, firstname, lastname, role, status } = req.body;
+
+  if (!id) {
+    return res.status(400).json({ message: "User ID is required" });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("users")
+      .update({
+        username,
+        email,
+        firstname,
+        lastname,
+        role,
+        status,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(500).json({ message: "Failed to update user", error: error.message });
+    }
+
+    if (!data) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      message: "User updated successfully",
+      user: data
+    });
+  } catch (err) {
+    console.error("Error updating user:", err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 
 // Login API with JWT
 router.post('/login', async (req, res) => {
@@ -145,6 +187,46 @@ export const authenticateToken = (req, res, next) => {
     next();
   });
 };
+
+// DELETE User
+router.delete('/del/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+
+  // ตรวจสอบว่า user ที่ล็อกอินอยู่เป็น admin หรือเจ้าของบัญชี
+  if (req.user.role !== 'admin' && req.user.id !== id) {
+    return res.status(403).json({ message: 'You do not have permission to delete this user.' });
+  }
+
+  try {
+    // ตรวจสอบก่อนว่าผู้ใช้งานมีอยู่จริงไหม
+    const { data: existingUser, error: fetchError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !existingUser) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // ลบผู้ใช้
+    const { error } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      throw error;
+    }
+
+    res.status(200).json({ message: `User ${id} deleted successfully.` });
+  } catch (err) {
+    console.error('Delete user error:', err.message);
+    res.status(500).json({ message: 'Failed to delete user.', error: err.message });
+  }
+});
+
+
 
 // API สำหรับ Refresh Token
 router.post('/refresh', (req, res) => {
