@@ -1,9 +1,36 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from 'react';
+import { logoutUser } from '../lib/api.js';
+import { useRouter } from 'next/navigation';
 
 export default function NavSidebar({ isOpen, setIsOpen }) {
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
+  const [user, setUser] = useState(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      const refreshToken = localStorage.getItem('refreshToken');
+      await logoutUser(refreshToken); // เรียก API logout
+
+      // เคลียร์ localStorage
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+
+      router.push('/login'); // กลับไปหน้าล็อกอิน
+    } catch (err) {
+      console.error('Logout failed:', err);
+    }
+  };
 
   return (
     <>
@@ -60,6 +87,21 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
             Admin Panel
           </h2>
         </div>
+
+         <div className="p-2 ml-5">
+  {user ? (
+    <span
+      className="text-sm bg-[#5c8bc0] rounded-4xl hover:bg-[#688db8] cursor-pointer px-3 py-1 block w-fit transition-all duration-300"
+      title={`${user.firstname} ${user.lastname}`} // Tooltip ตอน hover
+    >
+      {isOpen
+        ? `${user.firstname} ${user.lastname}`
+        : user.firstname.charAt(0)}
+    </span>
+  ) : (
+    <span className="text-sm">Not logged in</span>
+  )}
+</div>
 
         {/* Navigation */}
         <nav className="flex-1 p-4">
@@ -134,14 +176,8 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
         </nav>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-700">
-          <NavLink
-            href="/login"
-            icon="logout"
-            label="Logout"
-            isOpen={isOpen}
-            className="text-red-300 hover:bg-red-900/20 hover:text-red-200"
-          />
+        <div className="p-4 text-center border-t border-gray-700">
+          <button onClick={handleLogout} className="text-red-300  hover:text-red-200 w-full h-full cursor-pointer" > Logout</button>
         </div>
       </aside>
     </>

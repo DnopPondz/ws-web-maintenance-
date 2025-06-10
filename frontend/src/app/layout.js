@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import NavSidebar from "./components/navsitebar";
+import AuthGuard from './components/AuthGuard';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,11 +19,12 @@ const geistMono = Geist_Mono({
 export default function RootLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const pathname = usePathname();
-  
-  // หน้าที่ไม่ต้องการ Sidebar
+
+  // หน้าที่ไม่ต้องการ Sidebar และไม่ต้องการ AuthGuard
   const noSidebarPages = ['/login', '/register', '/forgot-password'];
   const shouldShowSidebar = !noSidebarPages.includes(pathname);
-  
+  const shouldProtect = !noSidebarPages.includes(pathname);
+
   return (
     <html lang="en">
       <head>
@@ -32,22 +34,42 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased ${shouldShowSidebar ? 'flex' : ''}`}
+        className={`
+          ${geistSans.variable} 
+          ${geistMono.variable} 
+          antialiased 
+          ${shouldShowSidebar ? 'flex' : ''} 
+          ${!shouldShowSidebar ? 'overflow-hidden' : ''}
+        `}
       >
-        {/* แสดง Sidebar เฉพาะหน้าที่ต้องการ */}
         {shouldShowSidebar && (
           <NavSidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
         )}
-        
-        <main
-          className={`transition-all duration-300 p-8 bg-white min-h-screen w-full ${
-            shouldShowSidebar 
-              ? (sidebarOpen ? 'ml-64' : 'ml-16')
-              : '' // หน้า Login ไม่มี margin-left
-          }`}
-        >
-          {children}
-        </main>
+
+        {shouldProtect ? (
+          <AuthGuard>
+            <main
+              className={`transition-all duration-300 p-0 bg-white min-h-screen w-full ${
+                shouldShowSidebar 
+                  ? (sidebarOpen ? 'ml-64' : 'ml-16')
+                  : ''
+              }`}
+            >
+              {children}
+            </main>
+          </AuthGuard >
+        ) : (
+          <main
+            className={`transition-all duration-300 p-0 bg-white min-h-screen w-full ${
+              shouldShowSidebar 
+                ? (sidebarOpen ? 'ml-64' : 'ml-16')
+                : ''
+            }`}
+          >
+            {children}
+          </main>
+        )}
+
       </body>
     </html>
   );
