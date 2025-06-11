@@ -1,6 +1,7 @@
 // backend/index.js
 import express from 'express';
 import authRoutes from './routes/auth.js';
+import authWp from './routes/authwp.js'
 import cors from 'cors';
 
 const app = express();
@@ -13,6 +14,7 @@ app.use(cors({
 
 app.use(express.json());
 app.use('/api', authRoutes);
+app.use('/api/wp', authWp);
 
 app.listen(port, () => {
   console.log(`🚀 Server running at http://localhost:${port}`);

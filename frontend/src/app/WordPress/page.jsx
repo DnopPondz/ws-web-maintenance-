@@ -1,61 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import axios from "axios";
 
-const initialSites = [
-  {
-    id: 1,
-    name: "Site A",
-    url: "https://sitea.com",
-    logo: "https://via.placeholder.com/50",
-    plugins: [
-      { name: "Yoast SEO", version: "17.4" },
-      { name: "Contact Form 7", version: "5.4" },
-    ],
-    theme: { name: "Twenty Twenty", version: "1.9" },
-    wordpressVersion: "6.2",
-    lastChecked: "2025-05-27 10:15",
-    status: "healthy",
-    maintenanceNotes: "",
-    isConfirmed: false,
-  },
-  {
-    id: 2,
-    name: "Site B",
-    url: "https://siteb.com",
-    logo: "https://via.placeholder.com/50",
-    plugins: [
-      { name: "Akismet", version: "4.1" },
-      { name: "Jetpack", version: "10.0" },
-    ],
-    theme: { name: "Astra", version: "3.8" },
-    wordpressVersion: "6.1",
-    lastChecked: "2025-05-26 15:42",
-    status: "warning",
-    maintenanceNotes: "",
-    isConfirmed: false,
-  },
-  {
-    id: 3,
-    name: "Site C",
-    url: "https://sitec.com",
-    logo: "https://via.placeholder.com/50",
-    plugins: [
-      { name: "WooCommerce", version: "7.5" },
-      { name: "Elementor", version: "3.12" },
-      { name: "Wordfence", version: "7.8" },
-    ],
-    theme: { name: "Storefront", version: "4.0" },
-    wordpressVersion: "6.3",
-    lastChecked: "2025-05-25 09:30",
-    status: "error",
-    maintenanceNotes: "",
-    isConfirmed: false,
-  },
-];
 
 const WpDashboard = () => {
-  const [sites, setSites] = useState(initialSites);
+  const [sites, setSites] = useState([]);
   const [expandedSites, setExpandedSites] = useState({});
   const [openDropdowns, setOpenDropdowns] = useState({});
   const [currentPage, setCurrentPage] = useState('dashboard'); // 'dashboard', 'edit', 'add', 'confirmed'
@@ -63,12 +13,21 @@ const WpDashboard = () => {
   const [formData, setFormData] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
 
+useEffect(() => {
+    axios.get('http://localhost:5000/api/wp/site')
+      .then(res => setSites(res.data.data))
+      .catch(err => console.error(err));
+  }, []);
+
+
   const toggleSiteExpansion = (id) => {
     setExpandedSites(prev => ({
       ...prev,
       [id]: !prev[id]
     }));
   };
+
+  
 
   // ปรับปรุงการใช้ useCallback เพื่อป้องกัน unnecessary re-renders
   const resetToMainPage = useCallback(() => {
