@@ -142,6 +142,11 @@ const cloneSite = (site) => {
   return cloneSites([site])[0];
 };
 
+// NOTE: ปรับค่า WEEKLY_RESET_* เพื่อเปลี่ยนเวลาการรีเซ็ตสถานะเว็บไซต์ที่ยืนยันแล้ว
+const WEEKLY_RESET_DAY = 1; // วันจันทร์ (0 = อาทิตย์, 1 = จันทร์, ...)
+const WEEKLY_RESET_HOUR = 0; // ชั่วโมงที่ต้องการให้รีเซ็ต (24 ชั่วโมง)
+const WEEKLY_RESET_MINUTE = 0; // นาทีที่ต้องการให้รีเซ็ต
+
 const WpDashboard = () => {
   const [sites, setSites] = useState([]);
   const [expandedSites, setExpandedSites] = useState({});
@@ -166,6 +171,7 @@ const WpDashboard = () => {
     isDeleting: false,
     error: null,
   });
+  const lastWeeklyResetKeyRef = useRef(null);
 
   const setSiteMutation = useCallback((siteId, patch) => {
     setSiteMutations((prev) => ({
@@ -362,27 +368,30 @@ const WpDashboard = () => {
 
   
 
-  // ปรับปรุงการใช้ useCallback เพื่อป้องกัน unnecessary re-renders
-  const resetToMainPage = useCallback(() => {
-    if (!initialSitesRef.current.length) {
-      console.warn('No initial WordPress site data available to reset.');
+  const resetConfirmedSitesForNewWeek = useCallback(async () => {
+    const confirmedSites = sitesRef.current.filter((site) => site.isConfirmed);
+
+    if (!confirmedSites.length) {
       return;
     }
 
-    const resetSites = cloneSites(initialSitesRef.current);
-    sitesRef.current = resetSites;
-    setSites(resetSites);
-    setExpandedSites({});
-    setOpenDropdowns({});
-    setCurrentPage('dashboard');
-    setEditingSite(null);
-    setFormData({});
-    setSearchTerm('');
-    setSiteMutations({});
-    setFormStatus({ type: null, message: "" });
-    setBanner(null);
-    console.log('System reset completed - back to main page');
-  }, []);
+    try {
+      for (const site of confirmedSites) {
+        // ใช้ skipReload เพื่อให้โหลดข้อมูลใหม่เพียงครั้งเดียวหลังอัปเดตทั้งหมด
+        await persistSite(
+          site.id,
+          { isConfirmed: false },
+          { showLoader: false, skipReload: true, action: 'auto-reset' }
+        );
+      }
+
+      await loadSites({ showLoader: false });
+      showBanner('รีเซ็ตเว็บไซต์ที่ตรวจสอบแล้วสำหรับการบำรุงรักษารอบใหม่เรียบร้อยแล้ว', 'info');
+    } catch (error) {
+      console.error('Failed to reset confirmed WordPress sites:', error);
+      showBanner(error?.message || 'ไม่สามารถรีเซ็ตสถานะเว็บไซต์ได้', 'error');
+    }
+  }, [loadSites, persistSite, showBanner]);
 
   useEffect(() => {
     if (!hasFetchedInitialSites) {
@@ -391,22 +400,31 @@ const WpDashboard = () => {
 
     const checkAndReset = () => {
       const now = new Date();
-      const dayOfWeek = now.getDay(); // 0 = อาทิตย์, 1 = จันทร์
+      const dayOfWeek = now.getDay();
       const hours = now.getHours();
       const minutes = now.getMinutes();
 
-      // ตรวจสอบว่าเป็นวันจันทร์เที่ยงคืน (00:00)
-      if (dayOfWeek === 1 && hours === 0 && minutes === 0) {
-        resetToMainPage();
+      if (
+        dayOfWeek === WEEKLY_RESET_DAY &&
+        hours === WEEKLY_RESET_HOUR &&
+        minutes === WEEKLY_RESET_MINUTE
+      ) {
+        const resetKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+
+        if (lastWeeklyResetKeyRef.current !== resetKey) {
+          lastWeeklyResetKeyRef.current = resetKey;
+          resetConfirmedSitesForNewWeek();
+        }
+      } else {
+        lastWeeklyResetKeyRef.current = null;
       }
     };
 
-    // ตั้งเวลาตรวจสอบทุกนาที
     const interval = setInterval(checkAndReset, 60000);
+    checkAndReset();
 
-    // ทำความสะอาดเมื่อ component unmount
     return () => clearInterval(interval);
-  }, [resetToMainPage, hasFetchedInitialSites]); // เพิ่ม dependency array
+  }, [hasFetchedInitialSites, resetConfirmedSitesForNewWeek]);
 
   const toggleDropdown = (id, type) => {
     setOpenDropdowns((prev) => ({
@@ -432,6 +450,7 @@ const WpDashboard = () => {
     persistSite(siteId, { isConfirmed: true, lastChecked: confirmationTime }, { showLoader: false, action: 'confirm' })
       .then(() => {
         showBanner('ยืนยันการอัปเดตเรียบร้อยแล้ว!', 'success');
+        setCurrentPage('confirmed');
       })
       .catch((err) => {
         showBanner(err.message || 'ไม่สามารถยืนยันการอัปเดตได้', 'error');

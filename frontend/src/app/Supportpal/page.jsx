@@ -135,6 +135,11 @@ const cloneSite = (site) => {
   return cloneSites([site])[0];
 };
 
+// NOTE: ปรับค่า MONTHLY_RESET_* เพื่อกำหนดเวลาการรีเซ็ตสถานะการยืนยันสำหรับ SupportPal
+const MONTHLY_RESET_DAY = 1; // วันที่ต้องการรีเซ็ต (1 = วันที่ 1 ของเดือน)
+const MONTHLY_RESET_HOUR = 0; // ชั่วโมงที่ต้องการให้รีเซ็ต (24 ชั่วโมง)
+const MONTHLY_RESET_MINUTE = 0; // นาทีที่ต้องการให้รีเซ็ต
+
 const SpDashboard = () => {
   const [sites, setSites] = useState([]);
   const [expandedSites, setExpandedSites] = useState({});
@@ -158,6 +163,7 @@ const SpDashboard = () => {
     isDeleting: false,
     error: null,
   });
+  const lastMonthlyResetKeyRef = useRef(null);
 
   const setSiteMutation = useCallback((siteId, patch) => {
     setSiteMutations((prev) => ({
@@ -393,6 +399,7 @@ const SpDashboard = () => {
     )
       .then(() => {
         showBanner("ยืนยันการอัปเดตเรียบร้อยแล้ว!", "success");
+        setCurrentPage("confirmed");
       })
       .catch((err) => {
         showBanner(err.message || "ไม่สามารถยืนยันการอัปเดตได้", "error");
@@ -414,6 +421,66 @@ const SpDashboard = () => {
         );
       });
   };
+
+  const resetConfirmedSitesForNewMonth = useCallback(async () => {
+    const confirmedSites = sitesRef.current.filter((site) => site.isConfirmed);
+
+    if (!confirmedSites.length) {
+      return;
+    }
+
+    try {
+      for (const site of confirmedSites) {
+        await persistSite(
+          site.id,
+          { isConfirmed: false },
+          { showLoader: false, skipReload: true, action: "auto-reset" }
+        );
+      }
+
+      await loadSites({ showLoader: false });
+      showBanner(
+        "รีเซ็ตรายการที่ตรวจสอบแล้วสำหรับรอบบำรุงรักษาเดือนใหม่เรียบร้อยแล้ว",
+        "info"
+      );
+    } catch (error) {
+      console.error("Failed to reset confirmed SupportPal sites:", error);
+      showBanner(error?.message || "ไม่สามารถรีเซ็ตสถานะเซิร์ฟเวอร์ได้", "error");
+    }
+  }, [loadSites, persistSite, showBanner]);
+
+  useEffect(() => {
+    if (!hasFetchedInitialSites) {
+      return;
+    }
+
+    const checkAndReset = () => {
+      const now = new Date();
+      const date = now.getDate();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+
+      if (
+        date === MONTHLY_RESET_DAY &&
+        hours === MONTHLY_RESET_HOUR &&
+        minutes === MONTHLY_RESET_MINUTE
+      ) {
+        const resetKey = `${now.getFullYear()}-${now.getMonth()}-${date}`;
+
+        if (lastMonthlyResetKeyRef.current !== resetKey) {
+          lastMonthlyResetKeyRef.current = resetKey;
+          resetConfirmedSitesForNewMonth();
+        }
+      } else {
+        lastMonthlyResetKeyRef.current = null;
+      }
+    };
+
+    const interval = setInterval(checkAndReset, 60000);
+    checkAndReset();
+
+    return () => clearInterval(interval);
+  }, [hasFetchedInitialSites, resetConfirmedSitesForNewMonth]);
 
   const goToAddPage = () => {
     setEditingSite(null);
