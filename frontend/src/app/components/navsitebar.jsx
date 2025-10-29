@@ -146,7 +146,7 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
                       : "opacity-0 -translate-x-2 w-0 overflow-hidden"
                   }`}
                 >
-                  Dashboard
+                  System
                 </span>
                 {isOpen && (
                   <span
