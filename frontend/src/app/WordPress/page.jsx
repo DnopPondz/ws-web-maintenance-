@@ -8,6 +8,19 @@ import {
   updateWordpressSite,
 } from "../lib/api";
 
+let thaiDateFormatter;
+
+const getThaiDateFormatter = () => {
+  if (!thaiDateFormatter) {
+    thaiDateFormatter = new Intl.DateTimeFormat("th-TH", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "Asia/Bangkok",
+    });
+  }
+  return thaiDateFormatter;
+};
+
 const formatLastChecked = (value) => {
   if (!value) {
     return "-";
@@ -18,10 +31,8 @@ const formatLastChecked = (value) => {
     if (Number.isNaN(date.getTime())) {
       return value;
     }
-    return date.toLocaleString("th-TH", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
+
+    return getThaiDateFormatter().format(date);
   } catch (error) {
     return value;
   }
