@@ -8,10 +8,69 @@ const apiClient = axios.create({
   timeout: REQUEST_TIMEOUT,
 });
 
+const isBrowser = () => typeof window !== 'undefined';
+
+const sanitizeStoredValue = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === 'undefined' || trimmed === 'null') {
+    return null;
+  }
+
+  return trimmed;
+};
+
+const getStoredValue = (key) => {
+  if (!isBrowser()) {
+    return null;
+  }
+
+  const raw = window.localStorage.getItem(key);
+  const cleaned = sanitizeStoredValue(raw);
+
+  if (raw && !cleaned) {
+    window.localStorage.removeItem(key);
+  }
+
+  return cleaned;
+};
+
+const storeAccessSession = ({ accessToken, refreshToken, user }) => {
+  if (!isBrowser()) {
+    return;
+  }
+
+  if (accessToken) {
+    window.localStorage.setItem('accessToken', accessToken);
+  }
+
+  if (refreshToken) {
+    window.localStorage.setItem('refreshToken', refreshToken);
+  }
+
+  if (user) {
+    window.localStorage.setItem('user', JSON.stringify(user));
+  }
+};
+
+const clearStoredSession = () => {
+  if (!isBrowser()) {
+    return;
+  }
+
+  window.localStorage.removeItem('accessToken');
+  window.localStorage.removeItem('refreshToken');
+  window.localStorage.removeItem('user');
+};
+
 apiClient.interceptors.request.use(
   (config) => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('accessToken');
+    if (isBrowser()) {
+      const token = getStoredValue('accessToken');
+
       if (token && !config.headers?.Authorization) {
         config.headers = {
           ...config.headers,
@@ -19,9 +78,112 @@ apiClient.interceptors.request.use(
         };
       }
     }
+
     return config;
   },
   (error) => Promise.reject(error)
+);
+
+let refreshRequest = null;
+
+const shouldAttemptRefresh = (error) => {
+  if (!error?.response) {
+    return false;
+  }
+
+  const status = error.response.status;
+  if (status !== 401 && status !== 403) {
+    return false;
+  }
+
+  const message =
+    (typeof error.response.data === 'string' && error.response.data) ||
+    error.response.data?.message ||
+    error.response.data?.error ||
+    '';
+
+  if (!message) {
+    return status === 401;
+  }
+
+  return /token|unauthorized|expired/i.test(message);
+};
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config || {};
+
+    if (originalRequest.skipAuthRetry) {
+      return Promise.reject(error);
+    }
+
+    if (isBrowser() && shouldAttemptRefresh(error) && !originalRequest._retry) {
+      const refreshToken = getStoredValue('refreshToken');
+
+      if (refreshToken) {
+        try {
+          if (!refreshRequest) {
+            refreshRequest = apiClient
+              .post(
+                '/refresh',
+                { refreshToken },
+                { skipAuthRetry: true }
+              )
+              .then((res) => {
+                const { accessToken: newAccessToken, user } = res.data || {};
+
+                if (!newAccessToken) {
+                  throw new Error('ไม่พบโทเค็นใหม่ กรุณาเข้าสู่ระบบอีกครั้ง');
+                }
+
+                storeAccessSession({ accessToken: newAccessToken, user });
+
+                return newAccessToken;
+              })
+              .catch((refreshErr) => {
+                clearStoredSession();
+                throw refreshErr;
+              })
+              .finally(() => {
+                refreshRequest = null;
+              });
+          }
+
+          const newToken = await refreshRequest;
+          originalRequest._retry = true;
+          originalRequest.headers = {
+            ...(originalRequest.headers || {}),
+            Authorization: `Bearer ${newToken}`,
+          };
+
+          return apiClient(originalRequest);
+        } catch (refreshErr) {
+          if (refreshErr instanceof Error && !axios.isAxiosError(refreshErr)) {
+            return Promise.reject(refreshErr);
+          }
+
+          const message =
+            (refreshErr?.response?.data &&
+              (refreshErr.response.data.message || refreshErr.response.data.error)) ||
+            refreshErr?.message ||
+            'ไม่สามารถรีเฟรชเซสชันได้';
+
+          return Promise.reject(new Error(message));
+        }
+      }
+
+      clearStoredSession();
+      return Promise.reject(new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่'));
+    }
+
+    if (isBrowser() && shouldAttemptRefresh(error)) {
+      clearStoredSession();
+      return Promise.reject(new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่'));
+    }
+
+    return Promise.reject(error);
+  }
 );
 
 const buildError = (error, fallbackMessage) => {

@@ -235,6 +235,17 @@ const WpDashboard = () => {
         return false;
       }
 
+      const updateId = targetSite._id || siteId;
+
+      if (!updateId) {
+        setSiteMutation(siteId, {
+          status: 'error',
+          error: 'ไม่พบรหัสเว็บไซต์สำหรับอัปเดต',
+          action,
+        });
+        return false;
+      }
+
       setSiteMutation(siteId, { status: 'saving', error: null, action });
 
       const payload = {
@@ -243,7 +254,7 @@ const WpDashboard = () => {
       };
 
       try {
-        await updateWordpressSite(siteId, payload);
+        await updateWordpressSite(updateId, payload);
 
         if (!skipReload) {
           await loadSites({ showLoader });
