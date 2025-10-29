@@ -136,4 +136,60 @@ export async function deleteWordpressSite(id) {
   }
 }
 
+const toSupportpalPayload = (site) => ({
+  name: site.name,
+  url: site.url,
+  logo: site.logo,
+  status: site.status,
+  versions:
+    site.versions && typeof site.versions === 'object'
+      ? site.versions
+      : {
+          nginx: '',
+          php: '',
+          mariadb: '',
+          supportpal: '',
+        },
+  maintenanceNotes: site.maintenanceNotes,
+  isConfirmed: Boolean(site.isConfirmed),
+  lastChecked: site.lastChecked,
+});
+
+export async function fetchSupportpalSites() {
+  try {
+    const res = await apiClient.get('/sp/site');
+    return res.data?.data || [];
+  } catch (error) {
+    throw buildError(error, 'Unable to load SupportPal sites');
+  }
+}
+
+export async function createSupportpalSite(site) {
+  try {
+    const payload = toSupportpalPayload(site);
+    const res = await apiClient.post('/sp/create', payload);
+    return unwrapSiteResponse(res);
+  } catch (error) {
+    throw buildError(error, 'Unable to create SupportPal site');
+  }
+}
+
+export async function updateSupportpalSite(id, site) {
+  try {
+    const payload = toSupportpalPayload(site);
+    const res = await apiClient.put(`/sp/edit/${id}`, payload);
+    return unwrapSiteResponse(res);
+  } catch (error) {
+    throw buildError(error, 'Unable to update SupportPal site');
+  }
+}
+
+export async function deleteSupportpalSite(id) {
+  try {
+    await apiClient.delete(`/sp/del/${id}`);
+  } catch (error) {
+    throw buildError(error, 'Unable to delete SupportPal site');
+  }
+}
+
 export { apiClient, API_BASE_URL };

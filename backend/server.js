@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 
 import authRoutes from './routes/auth.js';
 import authWp from './routes/authwp.js';
+import authSupportpal from './routes/authsupportpal.js';
 import connectMongo from './database/mongo.js';
 
 dotenv.config();
@@ -23,6 +24,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api', authRoutes);
 app.use('/api/wp', authWp);
+app.use('/api/sp', authSupportpal);
 
 async function start() {
   try {
