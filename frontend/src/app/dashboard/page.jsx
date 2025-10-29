@@ -284,42 +284,67 @@ const EmptyState = ({ message }) => (
 );
 
 const ChangeDetails = ({ details, summary }) => {
-  if (Array.isArray(details) && details.length > 0) {
-    return (
-      <dl className="mt-3 space-y-2 text-sm text-gray-600">
-        {details.map((detail, index) => {
-          const key = detail.field || `${detail.label}-${index}`;
-          const hasPrevious = detail.previous && detail.previous.length > 0;
-          const hasCurrent = detail.current && detail.current.length > 0;
-          let valueLabel = "Updated";
+  const hasDetails = Array.isArray(details) && details.length > 0;
+  const [isExpanded, setIsExpanded] = useState(false);
 
-          if (hasPrevious && hasCurrent) {
-            valueLabel =
-              detail.previous === detail.current
-                ? detail.current
-                : `${detail.previous} → ${detail.current}`;
-          } else if (hasCurrent) {
-            valueLabel = detail.current;
-          } else if (hasPrevious) {
-            valueLabel = detail.previous;
-          }
+  if (!hasDetails) {
+    if (summary) {
+      return <p className="mt-3 text-sm text-gray-500">{summary}</p>;
+    }
 
-          return (
-            <div key={key} className="flex flex-col gap-0.5">
-              <dt className="font-medium text-gray-500">{detail.label}</dt>
-              <dd className="text-gray-700">{valueLabel}</dd>
-            </div>
-          );
-        })}
-      </dl>
-    );
+    return null;
   }
 
-  if (summary) {
-    return <p className="mt-3 text-sm text-gray-500">{summary}</p>;
-  }
+  const toggleExpanded = () => {
+    setIsExpanded((previous) => !previous);
+  };
 
-  return null;
+  return (
+    <div className="mt-3 space-y-2">
+      {summary && <p className="text-sm text-gray-500">{summary}</p>}
+
+      <button
+        type="button"
+        onClick={toggleExpanded}
+        aria-expanded={isExpanded}
+        className="inline-flex items-center gap-1 text-sm font-semibold text-[#316fb7] transition-colors hover:text-[#245c94]"
+      >
+        {isExpanded
+          ? "Hide change details"
+          : `Show change details (${details.length})`}
+        <span aria-hidden="true">{isExpanded ? "▲" : "▼"}</span>
+      </button>
+
+      {isExpanded && (
+        <dl className="space-y-2 text-sm text-gray-600">
+          {details.map((detail, index) => {
+            const key = detail.field || `${detail.label}-${index}`;
+            const hasPrevious = detail.previous && detail.previous.length > 0;
+            const hasCurrent = detail.current && detail.current.length > 0;
+            let valueLabel = "Updated";
+
+            if (hasPrevious && hasCurrent) {
+              valueLabel =
+                detail.previous === detail.current
+                  ? detail.current
+                  : `${detail.previous} → ${detail.current}`;
+            } else if (hasCurrent) {
+              valueLabel = detail.current;
+            } else if (hasPrevious) {
+              valueLabel = detail.previous;
+            }
+
+            return (
+              <div key={key} className="flex flex-col gap-0.5">
+                <dt className="font-medium text-gray-500">{detail.label}</dt>
+                <dd className="text-gray-700">{valueLabel}</dd>
+              </div>
+            );
+          })}
+        </dl>
+      )}
+    </div>
+  );
 };
 
 const DashboardPage = () => {
