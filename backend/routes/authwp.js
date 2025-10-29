@@ -1,13 +1,10 @@
 import express from 'express';
-import { supabase } from '../supabase/client.js';
+import mongoose from 'mongoose';
+
 import { checkAdminRole } from '../middleware/checkAdminRole.js';
+import WordpressSite from '../models/WordpressSite.js';
 
-const WP_TABLE = process.env.SUPABASE_WP_TABLE || 'wordpress_sites';
-
-const respondTableMissing = (res) =>
-  res.status(500).json({
-    error: `Supabase table "${WP_TABLE}" not found. Create it or set SUPABASE_WP_TABLE to the correct table name.`,
-  });
+const router = express.Router();
 
 const parseMaybeJson = (value, fallback) => {
   if (!value) {
@@ -45,202 +42,187 @@ const toBoolean = (value, fallback = false) => {
   return fallback;
 };
 
+const parseDateInput = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
 const prepareSitePayload = (payload, { fallbackLastChecked = true } = {}) => {
   const themeCandidate = parseMaybeJson(payload.theme, payload.theme);
   const pluginsCandidate = parseMaybeJson(payload.plugins, payload.plugins);
 
   const theme =
     themeCandidate && typeof themeCandidate === 'object' && !Array.isArray(themeCandidate)
-      ? themeCandidate
-      : undefined;
+      ? {
+          name: themeCandidate?.name || '',
+          version: themeCandidate?.version || '',
+        }
+      : {
+          name: payload?.theme?.name || '',
+          version: payload?.theme?.version || '',
+        };
 
-  const plugins = Array.isArray(pluginsCandidate) ? pluginsCandidate : undefined;
+  const pluginsSource = Array.isArray(pluginsCandidate)
+    ? pluginsCandidate
+    : Array.isArray(payload?.plugins)
+      ? payload.plugins
+      : [];
+
+  const plugins = pluginsSource.map((plugin) => ({
+    name: plugin?.name || '',
+    version: plugin?.version || '',
+  }));
+
+  const lastCheckedCandidate =
+    payload.lastChecked ?? payload.last_checked ?? payload.last_checked_at ?? null;
+
+  const parsedLastChecked = parseDateInput(lastCheckedCandidate);
 
   return {
     name: payload.name,
     url: payload.url,
     logo: payload.logo,
-    wordpress_version: payload.wordpressVersion ?? payload.wordpress_version ?? null,
+    wordpressVersion: payload.wordpressVersion ?? payload.wordpress_version ?? null,
     status: payload.status,
     theme,
     plugins,
-    maintenance_notes: payload.maintenanceNotes ?? payload.maintenance_notes ?? undefined,
-    is_confirmed: toBoolean(payload.isConfirmed ?? payload.is_confirmed, false),
-    last_checked:
-      payload.lastChecked ??
-      payload.last_checked ??
-      (fallbackLastChecked ? new Date().toISOString() : undefined),
+    maintenanceNotes: payload.maintenanceNotes ?? payload.maintenance_notes ?? undefined,
+    isConfirmed: toBoolean(payload.isConfirmed ?? payload.is_confirmed, false),
+    lastChecked: parsedLastChecked ?? (fallbackLastChecked ? new Date() : undefined),
   };
 };
 
 const stripUndefined = (payload) =>
-  Object.fromEntries(
-    Object.entries(payload).filter(([, value]) => value !== undefined)
-  );
+  Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
 
-const router = express.Router();
+const formatSiteResponse = (site) => {
+  if (!site) {
+    return null;
+  }
+
+  const plain = typeof site.toJSON === 'function' ? site.toJSON() : site;
+
+  return {
+    ...plain,
+    maintenanceNotes: plain.maintenanceNotes ?? '',
+    plugins: Array.isArray(plain.plugins) ? plain.plugins : [],
+    theme:
+      plain.theme && typeof plain.theme === 'object'
+        ? {
+            name: plain.theme.name || '',
+            version: plain.theme.version || '',
+          }
+        : { name: '', version: '' },
+    lastChecked: plain.lastChecked || null,
+  };
+};
 
 router.post('/create', checkAdminRole, async (req, res) => {
-  const {
-    name,
-    url,
-    logo,
-    wordpressVersion,
-    status,
-    theme,
-    plugins,
-    maintenanceNotes,
-    isConfirmed = false,
-    lastChecked
-  } = req.body;
+  const { name, url } = req.body;
 
-  // Validate
   if (!name || !url) {
-    return res.status(400).json({ error: "Missing required fields: name or url" });
+    return res.status(400).json({ error: 'Missing required fields: name or url' });
   }
 
   try {
     const sitePayload = prepareSitePayload(
       {
         ...req.body,
-        theme: theme ?? { name: '', version: '' },
-        plugins: Array.isArray(plugins) ? plugins : [],
-        isConfirmed,
-        lastChecked,
+        theme: req.body.theme ?? { name: '', version: '' },
+        plugins: Array.isArray(req.body.plugins) ? req.body.plugins : [],
       },
       { fallbackLastChecked: true }
     );
 
     const insertPayload = stripUndefined(sitePayload);
 
-    const { data, error } = await supabase.from(WP_TABLE).insert([insertPayload]).select();
-
-    if (error) {
-      if (error.code === '42P01') {
-        return respondTableMissing(res);
-      }
-      console.error("Insert error:", error);
-      return res.status(500).json({ error: error.message });
-    }
+    const site = await WordpressSite.create(insertPayload);
 
     res.status(201).json({
-      message: 'Site updated successfully',
-      data,
+      message: 'Site created successfully',
+      data: [formatSiteResponse(site)],
     });
   } catch (err) {
-    console.error("Unexpected error:", err);
-    res.status(500).json({ error: "Unexpected server error" });
+    console.error('Insert error:', err);
+    if (err instanceof mongoose.Error.ValidationError) {
+      return res.status(400).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message || 'Unexpected server error' });
   }
 });
 
 router.get('/site', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from(WP_TABLE)
-      .select('*')
-      .order('id', { ascending: true });
+    const sites = await WordpressSite.find().sort({ createdAt: 1 });
 
-    if (error) {
-      if (error.code === '42P01') {
-        return respondTableMissing(res);
-      }
-      console.error("Fetch error:", error);
-      return res.status(500).json({ error: error.message });
-    }
-
-    res.status(200).json({ data });
+    res.status(200).json({ data: sites.map(formatSiteResponse) });
   } catch (err) {
-    console.error("Unexpected error:", err);
-    res.status(500).json({ error: "Unexpected server error" });
+    console.error('Fetch error:', err);
+    res.status(500).json({ error: err.message || 'Unexpected server error' });
   }
 });
 
-// EDIT WordPress site by ID
 router.put('/edit/:id', checkAdminRole, async (req, res) => {
   const { id } = req.params;
-  const {
-    name,
-    url,
-    logo,
-    wordpressVersion,
-    status,
-    theme,
-    plugins,
-    maintenanceNotes,
-    isConfirmed,
-    lastChecked,
-  } = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ error: 'Invalid site id' });
+  }
 
   try {
     const sitePayload = prepareSitePayload(
       {
         ...req.body,
-        isConfirmed,
-        lastChecked,
       },
       { fallbackLastChecked: false }
     );
 
     const updatePayload = stripUndefined(sitePayload);
 
-    const { data, error } = await supabase
-      .from(WP_TABLE)
-      .update(updatePayload)
-      .eq('id', id)
-      .select();
+    const site = await WordpressSite.findByIdAndUpdate(id, updatePayload, { new: true });
 
-    if (error) {
-      if (error.code === '42P01') {
-        return respondTableMissing(res);
-      }
-      console.error("Update error:", error);
-      return res.status(500).json({ error: error.message });
-    }
-
-    if (!data || data.length === 0) {
-      return res.status(404).json({ error: "Site not found" });
+    if (!site) {
+      return res.status(404).json({ error: 'Site not found' });
     }
 
     res.status(200).json({
       message: 'Site updated successfully',
-      data,
+      data: [formatSiteResponse(site)],
     });
   } catch (err) {
-    console.error("Unexpected error:", err);
-    res.status(500).json({ error: "Unexpected server error" });
+    console.error('Update error:', err);
+    if (err instanceof mongoose.Error.ValidationError) {
+      return res.status(400).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message || 'Unexpected server error' });
   }
 });
 
-// DELETE WordPress site by ID
 router.delete('/del/:id', checkAdminRole, async (req, res) => {
   const { id } = req.params;
 
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ error: 'Invalid site id' });
+  }
+
   try {
-    const { data, error } = await supabase
-      .from(WP_TABLE)
-      .delete()
-      .eq('id', id)
-      .select();
+    const site = await WordpressSite.findByIdAndDelete(id);
 
-    if (error) {
-      if (error.code === '42P01') {
-        return respondTableMissing(res);
-      }
-      console.error("Delete error:", error);
-      return res.status(500).json({ error: error.message });
-    }
-
-    if (!data || data.length === 0) {
-      return res.status(404).json({ error: "Site not found" });
+    if (!site) {
+      return res.status(404).json({ error: 'Site not found' });
     }
 
     res.status(200).json({
       message: `Site ID ${id} deleted successfully`,
-      data,
+      data: [formatSiteResponse(site)],
     });
   } catch (err) {
-    console.error("Unexpected error:", err);
-    res.status(500).json({ error: "Unexpected server error" });
+    console.error('Delete error:', err);
+    res.status(500).json({ error: err.message || 'Unexpected server error' });
   }
 });
 

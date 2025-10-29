@@ -1,5 +1,7 @@
 import jwt from 'jsonwebtoken';
 
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-change-this';
+
 export function checkAdminRole(req, res, next) {
   const authHeader = req.headers.authorization;
 
@@ -10,12 +12,12 @@ export function checkAdminRole(req, res, next) {
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET); // ใช้ secret เดียวกับ backend
+    const decoded = jwt.verify(token, JWT_SECRET);
     if (decoded.role !== 'admin') {
       return res.status(403).json({ error: 'Admins only' });
     }
 
-    req.user = decoded; // ส่งข้อมูลผู้ใช้ไปยัง endpoint ถัดไป
+    req.user = decoded;
     next();
   } catch (err) {
     res.status(401).json({ error: 'Invalid token' });

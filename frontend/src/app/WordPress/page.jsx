@@ -61,11 +61,24 @@ const parseJsonField = (value) => {
 const cloneSites = (sites = []) =>
   sites.map((site) => ({
     ...site,
+    id: site?.id != null ? String(site.id) : site?.id,
     theme: site.theme ? { ...site.theme } : { name: "", version: "" },
     plugins: Array.isArray(site.plugins)
       ? site.plugins.map((plugin) => ({ ...plugin }))
       : [],
   }));
+
+const deriveSiteId = (site, index) => {
+  const candidates = [site?.id, site?._id, site?.uuid];
+
+  for (const candidate of candidates) {
+    if (candidate !== undefined && candidate !== null && candidate !== '') {
+      return String(candidate);
+    }
+  }
+
+  return String(index + 1);
+};
 
 const normaliseSites = (rawSites = []) =>
   rawSites.map((site, index) => {
@@ -101,7 +114,8 @@ const normaliseSites = (rawSites = []) =>
       site?.isConfirmed ?? site?.is_confirmed ?? false;
 
     return {
-      id: typeof site?.id === "number" ? site.id : index + 1,
+      id: deriveSiteId(site, index),
+      _id: site?._id ? String(site._id) : undefined,
       name: site?.name || "Unnamed Site",
       url: site?.url || "",
       logo: site?.logo || "https://via.placeholder.com/50",
