@@ -2,7 +2,50 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 
-import { fetchWordpressSites } from "../lib/api";
+import {
+  fetchWordpressSites,
+  createWordpressSite,
+  updateWordpressSite,
+} from "../lib/api";
+
+const formatLastChecked = (value) => {
+  if (!value) {
+    return "-";
+  }
+
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    return date.toLocaleString("th-TH", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  } catch (error) {
+    return value;
+  }
+};
+
+const parseJsonField = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  if (Array.isArray(value) || typeof value === "object") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  return null;
+};
 
 const cloneSites = (sites = []) =>
   sites.map((site) => ({
@@ -14,27 +57,56 @@ const cloneSites = (sites = []) =>
   }));
 
 const normaliseSites = (rawSites = []) =>
-  rawSites.map((site, index) => ({
-    id: typeof site?.id === "number" ? site.id : index + 1,
-    name: site?.name || "Unnamed Site",
-    url: site?.url || "",
-    logo: site?.logo || "https://via.placeholder.com/50",
-    wordpressVersion: site?.wordpressVersion || "N/A",
-    status: site?.status || "healthy",
-    maintenanceNotes: site?.maintenanceNotes || "",
-    theme: {
-      name: site?.theme?.name || "N/A",
-      version: site?.theme?.version || "N/A",
-    },
-    plugins: Array.isArray(site?.plugins)
-      ? site.plugins.map((plugin, pluginIndex) => ({
-          name: plugin?.name || `Plugin ${pluginIndex + 1}`,
-          version: plugin?.version || "N/A",
-        }))
-      : [],
-    isConfirmed: Boolean(site?.isConfirmed),
-    lastChecked: site?.lastChecked || "-",
-  }));
+  rawSites.map((site, index) => {
+    const parsedTheme = parseJsonField(site?.theme);
+    const theme =
+      parsedTheme && !Array.isArray(parsedTheme)
+        ? {
+            name: parsedTheme?.name || "N/A",
+            version: parsedTheme?.version || "N/A",
+          }
+        : {
+            name: site?.theme?.name || "N/A",
+            version: site?.theme?.version || "N/A",
+          };
+
+    const parsedPlugins = parseJsonField(site?.plugins);
+    const pluginsSource = Array.isArray(parsedPlugins)
+      ? parsedPlugins
+      : Array.isArray(site?.plugins)
+        ? site.plugins
+        : [];
+
+    const formattedPlugins = pluginsSource.map((plugin, pluginIndex) => ({
+      name: plugin?.name || `Plugin ${pluginIndex + 1}`,
+      version: plugin?.version || "N/A",
+    }));
+
+    const lastChecked = site?.lastChecked || site?.last_checked || null;
+    const maintenanceNotes =
+      site?.maintenanceNotes ?? site?.maintenance_notes ?? "";
+
+    const isConfirmedRaw =
+      site?.isConfirmed ?? site?.is_confirmed ?? false;
+
+    return {
+      id: typeof site?.id === "number" ? site.id : index + 1,
+      name: site?.name || "Unnamed Site",
+      url: site?.url || "",
+      logo: site?.logo || "https://via.placeholder.com/50",
+      wordpressVersion:
+        site?.wordpressVersion || site?.wordpress_version || "N/A",
+      status: site?.status || "healthy",
+      maintenanceNotes,
+      theme,
+      plugins: formattedPlugins,
+      isConfirmed:
+        typeof isConfirmedRaw === "string"
+          ? isConfirmedRaw === "true" || isConfirmedRaw === "t"
+          : Boolean(isConfirmedRaw),
+      lastChecked,
+    };
+  });
 
 const cloneSite = (site) => {
   if (!site) {
@@ -56,30 +128,120 @@ const WpDashboard = () => {
   const [error, setError] = useState(null);
   const [hasFetchedInitialSites, setHasFetchedInitialSites] = useState(false);
   const initialSitesRef = useRef([]);
+  const sitesRef = useRef([]);
+  const [siteMutations, setSiteMutations] = useState({});
+  const [banner, setBanner] = useState(null);
+  const [isSavingChanges, setIsSavingChanges] = useState(false);
+  const [formStatus, setFormStatus] = useState({ type: null, message: "" });
 
-  const loadSites = useCallback(async () => {
-    setIsLoading(true);
+  const setSiteMutation = useCallback((siteId, patch) => {
+    setSiteMutations((prev) => ({
+      ...prev,
+      [siteId]: {
+        ...(prev[siteId] || {}),
+        ...patch,
+      },
+    }));
+  }, []);
+
+  const showBanner = useCallback((message, type = 'info') => {
+    setBanner({ message, type });
+  }, []);
+
+  const dismissBanner = useCallback(() => setBanner(null), []);
+
+  const persistSite = useCallback(
+    async (siteId, overrides = {}, options = {}) => {
+      const { showLoader = false, skipReload = false, action = 'update' } = options;
+      const targetSite = sitesRef.current.find((item) => item.id === siteId);
+
+      if (!targetSite) {
+        setSiteMutation(siteId, {
+          status: 'error',
+          error: 'ไม่พบเว็บไซต์ที่ต้องการบันทึก',
+          action,
+        });
+        return false;
+      }
+
+      setSiteMutation(siteId, { status: 'saving', error: null, action });
+
+      const payload = {
+        ...targetSite,
+        ...overrides,
+      };
+
+      try {
+        await updateWordpressSite(siteId, payload);
+
+        if (!skipReload) {
+          await loadSites({ showLoader });
+        }
+
+        setSiteMutation(siteId, {
+          status: 'success',
+          error: null,
+          timestamp: Date.now(),
+          action,
+        });
+
+        return true;
+      } catch (err) {
+        console.error('Failed to persist WordPress site:', err);
+        setSiteMutation(siteId, {
+          status: 'error',
+          error: err.message || 'ไม่สามารถบันทึกข้อมูลเว็บไซต์ได้',
+          action,
+        });
+
+        if (!skipReload) {
+          await loadSites({ showLoader });
+        }
+
+        throw err;
+      }
+    },
+    [loadSites, setSiteMutation]
+  );
+
+  const loadSites = useCallback(async ({ showLoader = true } = {}) => {
+    const manageLoadingState = showLoader !== false;
+
+    if (manageLoadingState) {
+      setIsLoading(true);
+    }
+
     setError(null);
     try {
       const apiSites = await fetchWordpressSites();
       const normalisedSites = normaliseSites(apiSites);
       initialSitesRef.current = cloneSites(normalisedSites);
+      sitesRef.current = normalisedSites;
       setSites(normalisedSites);
       setHasFetchedInitialSites(true);
     } catch (err) {
       console.error('Failed to load WordPress sites:', err);
-      setError(err.message || 'ไม่สามารถโหลดข้อมูลเว็บไซต์ได้');
+      const friendlyMessage = err.message?.includes('Supabase table')
+        ? `${err.message} ตรวจสอบการตั้งค่าฐานข้อมูลหรือสร้างตารางใหม่`
+        : err.message;
+      setError(friendlyMessage || 'ไม่สามารถโหลดข้อมูลเว็บไซต์ได้');
       if (!initialSitesRef.current.length) {
         setSites([]);
       }
     } finally {
-      setIsLoading(false);
+      if (manageLoadingState) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
 useEffect(() => {
     loadSites();
   }, [loadSites]);
+
+  useEffect(() => {
+    sitesRef.current = sites;
+  }, [sites]);
 
 
   const toggleSiteExpansion = (id) => {
@@ -98,13 +260,18 @@ useEffect(() => {
       return;
     }
 
-    setSites(cloneSites(initialSitesRef.current));
+    const resetSites = cloneSites(initialSitesRef.current);
+    sitesRef.current = resetSites;
+    setSites(resetSites);
     setExpandedSites({});
     setOpenDropdowns({});
     setCurrentPage('dashboard');
     setEditingSite(null);
     setFormData({});
     setSearchTerm('');
+    setSiteMutations({});
+    setFormStatus({ type: null, message: "" });
+    setBanner(null);
     console.log('System reset completed - back to main page');
   }, []);
 
@@ -140,20 +307,41 @@ useEffect(() => {
   };
 
   const updateMaintenanceNotes = (id, notes) => {
-    setSites(prev =>
-      prev.map(site =>
+    setSites((prev) => {
+      const updatedSites = prev.map((site) =>
         site.id === id ? { ...site, maintenanceNotes: notes } : site
-      )
-    );
+      );
+      sitesRef.current = updatedSites;
+      return updatedSites;
+    });
+    setSiteMutation(id, { status: 'dirty', error: null, action: 'notes' });
   };
 
   const confirmUpdate = (siteId) => {
-    setSites(prev =>
-      prev.map(site =>
-        site.id === siteId ? { ...site, isConfirmed: true, lastChecked: new Date().toLocaleString('th-TH') } : site
-      )
-    );
-    alert('ยืนยันการอัปเดตเรียบร้อยแล้ว!');
+    const confirmationTime = new Date().toISOString();
+
+    persistSite(siteId, { isConfirmed: true, lastChecked: confirmationTime }, { showLoader: false, action: 'confirm' })
+      .then(() => {
+        showBanner('ยืนยันการอัปเดตเรียบร้อยแล้ว!', 'success');
+      })
+      .catch((err) => {
+        showBanner(err.message || 'ไม่สามารถยืนยันการอัปเดตได้', 'error');
+      });
+  };
+
+  const handleSaveMaintenanceNotes = (siteId) => {
+    const siteName = sitesRef.current.find((item) => item.id === siteId)?.name || 'เว็บไซต์';
+
+    persistSite(siteId, {}, { showLoader: false, action: 'notes' })
+      .then(() => {
+        showBanner(`บันทึกหมายเหตุของ ${siteName} เรียบร้อยแล้ว`, 'success');
+      })
+      .catch((err) => {
+        showBanner(
+          err.message || `ไม่สามารถบันทึกหมายเหตุของ ${siteName} ได้`,
+          'error'
+        );
+      });
   };
 
   const goToAddPage = () => {
@@ -169,6 +357,7 @@ useEffect(() => {
       plugins: [],
       isConfirmed: false
     });
+    setFormStatus({ type: null, message: "" });
     setCurrentPage('add');
   };
 
@@ -185,6 +374,7 @@ useEffect(() => {
       plugins: site.plugins.map(p => ({ ...p })),
       isConfirmed: site.isConfirmed
     });
+    setFormStatus({ type: null, message: "" });
     setCurrentPage('edit');
   };
 
@@ -192,6 +382,7 @@ useEffect(() => {
     setCurrentPage('dashboard');
     setEditingSite(null);
     setFormData({});
+    setFormStatus({ type: null, message: "" });
   };
 
   const goToConfirmedPage = () => {
@@ -239,57 +430,82 @@ useEffect(() => {
   };
 
   // ปรับปรุงการ validation ในฟังก์ชัน saveChanges
-  const saveChanges = () => {
-    // เพิ่มการตรวจสอบข้อมูลที่จำเป็น
+  const saveChanges = async () => {
     if (!formData.name || !formData.url) {
-      alert('กรุณากรอกชื่อเว็บไซต์และ URL');
+      setFormStatus({ type: 'error', message: 'กรุณากรอกชื่อเว็บไซต์และ URL' });
       return;
     }
 
-    // ตรวจสอบ URL format
     try {
       new URL(formData.url);
     } catch {
-      alert('กรุณากรอก URL ที่ถูกต้อง (เช่น https://example.com)');
+      setFormStatus({ type: 'error', message: 'กรุณากรอก URL ที่ถูกต้อง (เช่น https://example.com)' });
       return;
     }
 
-    if (currentPage === 'add') {
-      const nextId = sites.length
-        ? Math.max(...sites.map((s) => (typeof s.id === 'number' ? s.id : Number(s.id) || 0))) + 1
-        : 1;
+    const sanitisedTheme = {
+      name: formData.theme?.name || '',
+      version: formData.theme?.version || '',
+    };
 
-      const newSite = cloneSite({
-        ...formData,
-        id: nextId,
-        lastChecked: new Date().toLocaleString('th-TH'),
-        isConfirmed: Boolean(formData.isConfirmed),
-      });
+    const sanitisedPlugins = Array.isArray(formData.plugins)
+      ? formData.plugins.map((plugin) => ({
+          name: plugin?.name || '',
+          version: plugin?.version || '',
+        }))
+      : [];
 
-      if (!newSite) {
-        alert('ไม่สามารถเพิ่มเว็บไซต์ใหม่ได้');
-        return;
+    const basePayload = {
+      name: formData.name,
+      url: formData.url,
+      logo: formData.logo || 'https://via.placeholder.com/50',
+      wordpressVersion: formData.wordpressVersion || '',
+      status: formData.status || 'healthy',
+      maintenanceNotes: formData.maintenanceNotes || '',
+      theme: sanitisedTheme,
+      plugins: sanitisedPlugins,
+      isConfirmed: Boolean(formData.isConfirmed),
+    };
+
+    const siteLabel = formData.name || editingSite?.name || 'เว็บไซต์';
+
+    setFormStatus({ type: null, message: '' });
+    setIsSavingChanges(true);
+
+    try {
+      if (currentPage === 'add') {
+        const payload = {
+          ...basePayload,
+          lastChecked: new Date().toISOString(),
+        };
+
+        await createWordpressSite(payload);
+        await loadSites({ showLoader: false });
+        showBanner(`เพิ่มเว็บไซต์ ${siteLabel} เรียบร้อยแล้ว`, 'success');
+        goBackToDashboard();
+      } else if (editingSite) {
+        const payload = {
+          ...basePayload,
+          lastChecked: editingSite.lastChecked || null,
+        };
+
+        await updateWordpressSite(editingSite.id, payload);
+        await loadSites({ showLoader: false });
+        showBanner(`บันทึกการแก้ไข ${siteLabel} เรียบร้อยแล้ว`, 'success');
+        goBackToDashboard();
       }
-
-      setSites((prev) => [...prev, newSite]);
-      alert(`เพิ่มเว็บไซต์ ${formData.name} เรียบร้อยแล้ว`);
-    } else if (editingSite) {
-      const updatedSite = cloneSite({
-        ...editingSite,
-        ...formData,
+    } catch (err) {
+      console.error('Failed to save WordPress site:', err);
+      const friendlyMessage = err.message?.includes('Supabase table')
+        ? `${err.message} ตรวจสอบการตั้งค่าฐานข้อมูลหรือสิทธิ์การเข้าถึง`
+        : err.message;
+      setFormStatus({
+        type: 'error',
+        message: friendlyMessage || 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
       });
-
-      if (!updatedSite) {
-        alert('ไม่สามารถบันทึกการแก้ไขได้ กรุณาลองอีกครั้ง');
-        return;
-      }
-
-      setSites((prev) =>
-        prev.map((site) => (site.id === editingSite.id ? updatedSite : site))
-      );
-      alert(`บันทึกการแก้ไข ${formData.name} เรียบร้อยแล้ว`);
+    } finally {
+      setIsSavingChanges(false);
     }
-    goBackToDashboard();
   };
 
   const getStatusColor = (status) => {
@@ -379,6 +595,17 @@ useEffect(() => {
           </div>
 
           <div className="p-6 space-y-6">
+            {formStatus.type && (
+              <div
+                className={`rounded-lg border px-4 py-3 text-sm ${
+                  formStatus.type === 'error'
+                    ? 'bg-red-50 border-red-200 text-red-700'
+                    : 'bg-green-50 border-green-200 text-green-700'
+                }`}
+              >
+                {formStatus.message}
+              </div>
+            )}
             {/* Basic Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -538,12 +765,15 @@ useEffect(() => {
             {/* Save Buttons */}
             <div className="border-t pt-6 flex gap-3">
               <button
+                type="button"
                 onClick={saveChanges}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                disabled={isSavingChanges}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {saveButtonText}
+                {isSavingChanges ? 'กำลังบันทึก...' : saveButtonText}
               </button>
               <button
+                type="button"
                 onClick={goBackToDashboard}
                 className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium transition-colors"
               >
@@ -566,6 +796,27 @@ useEffect(() => {
       <h1 className="text-3xl font-bold text-center mb-6">
         {pageIcon} {pageTitle}
       </h1>
+
+      {banner && (
+        <div
+          className={`flex items-start justify-between gap-3 rounded-lg border px-4 py-3 text-sm ${
+            banner.type === 'error'
+              ? 'bg-red-50 border-red-200 text-red-700'
+              : banner.type === 'success'
+                ? 'bg-green-50 border-green-200 text-green-700'
+                : 'bg-blue-50 border-blue-200 text-blue-700'
+          }`}
+        >
+          <span>{banner.message}</span>
+          <button
+            type="button"
+            onClick={dismissBanner}
+            className="text-xs font-medium underline hover:opacity-80"
+          >
+            ปิด
+          </button>
+        </div>
+      )}
 
       {hasFetchedInitialSites && isLoading && (
         <div className="bg-blue-50 border border-blue-200 text-blue-700 rounded-lg p-3 text-center text-sm">
@@ -680,11 +931,26 @@ useEffect(() => {
           </div>
         </div>
       ) : (
-        currentPageSites.map((site) => (
-          <div
-            key={site.id}
-            className="bg-white shadow-lg rounded-lg border border-gray-200 overflow-hidden transition-all duration-200 hover:shadow-xl"
-          >
+        currentPageSites.map((site) => {
+          const mutation = siteMutations[site.id] || {};
+          const isSavingSite = mutation.status === 'saving';
+          const isConfirmSaving = mutation.action === 'confirm' && isSavingSite;
+          const isNotesSaving = mutation.action === 'notes' && isSavingSite;
+          const saveError = mutation.status === 'error' ? mutation.error : null;
+          const hasUnsavedChanges = mutation.status === 'dirty';
+          const lastSavedLabel =
+            mutation.action === 'notes' && mutation.status === 'success' && mutation.timestamp
+              ? new Date(mutation.timestamp).toLocaleTimeString('th-TH', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+              : null;
+
+          return (
+            <div
+              key={site.id}
+              className="bg-white shadow-lg rounded-lg border border-gray-200 overflow-hidden transition-all duration-200 hover:shadow-xl"
+            >
             {/* Header - Always Visible */}
             <div 
               className="p-4 cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
@@ -730,7 +996,7 @@ useEffect(() => {
                   </div>
                   <div className="text-right text-sm text-gray-600">
                     <div>WP {site.wordpressVersion}</div>
-                    <div>{site.lastChecked}</div>
+                    <div>{formatLastChecked(site.lastChecked)}</div>
                   </div>
                   <div className="text-2xl text-gray-400 transition-transform duration-500 ease-in-out" 
                        style={{ transform: expandedSites[site.id] ? 'rotate(180deg)' : 'rotate(0deg)' }}>
@@ -749,13 +1015,16 @@ useEffect(() => {
                 <div className="flex gap-2 mb-4">
                   {!site.isConfirmed && (
                     <button
+                      type="button"
                       onClick={() => confirmUpdate(site.id)}
-                      className="px-4 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition-colors"
+                      disabled={isConfirmSaving}
+                      className="px-4 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      ✅ ยืนยันการอัปเดต
+                      {isConfirmSaving ? 'กำลังยืนยัน...' : '✅ ยืนยันการอัปเดต'}
                     </button>
                   )}
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       goToEditPage(site);
@@ -827,11 +1096,31 @@ useEffect(() => {
                     value={site.maintenanceNotes}
                     onChange={(e) => updateMaintenanceNotes(site.id, e.target.value)}
                   />
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleSaveMaintenanceNotes(site.id)}
+                      disabled={isNotesSaving}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {isNotesSaving ? 'กำลังบันทึก...' : '💾 บันทึกหมายเหตุ'}
+                    </button>
+                    {hasUnsavedChanges && (
+                      <span className="text-xs text-amber-600">มีการแก้ไขที่ยังไม่บันทึก</span>
+                    )}
+                    {saveError && (
+                      <span className="text-xs text-red-600">{saveError}</span>
+                    )}
+                    {!hasUnsavedChanges && !saveError && lastSavedLabel && (
+                      <span className="text-xs text-green-600">บันทึกล่าสุด {lastSavedLabel}</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ))
+            </div>
+          );
+        })
       )}
     </div>
   );

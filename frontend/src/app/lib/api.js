@@ -79,4 +79,61 @@ export async function fetchWordpressSites() {
   }
 }
 
+const toWordpressPayload = (site) => ({
+  name: site.name,
+  url: site.url,
+  logo: site.logo,
+  wordpressVersion: site.wordpressVersion,
+  status: site.status,
+  theme:
+    site.theme && typeof site.theme === 'object'
+      ? site.theme
+      : { name: '', version: '' },
+  plugins: Array.isArray(site.plugins) ? site.plugins : [],
+  maintenanceNotes: site.maintenanceNotes,
+  isConfirmed: Boolean(site.isConfirmed),
+  lastChecked: site.lastChecked,
+});
+
+const unwrapSiteResponse = (res) => {
+  if (!res?.data) {
+    return null;
+  }
+
+  const { data } = res.data;
+  if (Array.isArray(data)) {
+    return data[0] || null;
+  }
+
+  return data ?? null;
+};
+
+export async function createWordpressSite(site) {
+  try {
+    const payload = toWordpressPayload(site);
+    const res = await apiClient.post('/wp/create', payload);
+    return unwrapSiteResponse(res);
+  } catch (error) {
+    throw buildError(error, 'Unable to create WordPress site');
+  }
+}
+
+export async function updateWordpressSite(id, site) {
+  try {
+    const payload = toWordpressPayload(site);
+    const res = await apiClient.put(`/wp/edit/${id}`, payload);
+    return unwrapSiteResponse(res);
+  } catch (error) {
+    throw buildError(error, 'Unable to update WordPress site');
+  }
+}
+
+export async function deleteWordpressSite(id) {
+  try {
+    await apiClient.delete(`/wp/del/${id}`);
+  } catch (error) {
+    throw buildError(error, 'Unable to delete WordPress site');
+  }
+}
+
 export { apiClient, API_BASE_URL };
