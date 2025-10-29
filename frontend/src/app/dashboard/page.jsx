@@ -242,84 +242,153 @@ const extractErrorMessage = (reason, fallback) => {
   return fallback;
 };
 
-const SummaryCard = ({ title, schedule, stats }) => {
+const SummaryCard = ({ title, schedule, stats, accent }) => {
   const lastConfirmedLabel = stats.lastConfirmed
     ? formatDateTime(stats.lastConfirmed)
     : "No confirmations yet";
+  const confirmationRate = stats.total
+    ? Math.round((stats.confirmed / stats.total) * 100)
+    : 0;
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-        {title}
-      </h2>
-      <p className="mt-1 text-xs text-gray-400">{schedule}</p>
-      <div className="mt-4 flex flex-wrap items-center gap-4">
+    <section className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+      <div
+        className={`absolute inset-x-0 top-0 h-1 ${accent}`}
+        aria-hidden="true"
+      />
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-3xl font-bold text-gray-900">{stats.confirmed}</p>
-          <p className="text-sm text-gray-500">Confirmed this cycle</p>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            {title}
+          </h2>
+          <p className="mt-1 text-xs text-slate-400">{schedule}</p>
         </div>
-        <dl className="grid flex-1 grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-600">
+        <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+          {confirmationRate}% confirmed
+        </div>
+      </div>
+      <div className="mt-6 flex flex-col gap-6">
+        <div className="flex items-end gap-4">
+          <p className="text-4xl font-semibold text-slate-900">
+            {stats.confirmed}
+          </p>
+          <span className="text-sm text-slate-500">Confirmed this cycle</span>
+        </div>
+        <dl className="grid gap-4 text-sm text-slate-600 sm:grid-cols-2">
           <div>
-            <dt className="text-gray-400">Total tracked</dt>
-            <dd className="font-semibold text-gray-900">{stats.total}</dd>
+            <dt className="text-slate-400">Total tracked</dt>
+            <dd className="text-base font-semibold text-slate-900">
+              {stats.total}
+            </dd>
           </div>
           <div>
-            <dt className="text-gray-400">Pending review</dt>
-            <dd className="font-semibold text-gray-900">{stats.pending}</dd>
+            <dt className="text-slate-400">Pending review</dt>
+            <dd className="text-base font-semibold text-slate-900">
+              {stats.pending}
+            </dd>
           </div>
-          <div className="col-span-2">
-            <dt className="text-gray-400">Last confirmation</dt>
-            <dd className="font-medium text-gray-900">{lastConfirmedLabel}</dd>
+          <div className="sm:col-span-2">
+            <dt className="text-slate-400">Last confirmation</dt>
+            <dd className="text-sm font-medium text-slate-700">
+              {lastConfirmedLabel}
+            </dd>
           </div>
         </dl>
+        <div className="h-2 rounded-full bg-slate-100">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-[#316fb7] to-[#245c94]"
+            style={{ width: `${Math.min(confirmationRate, 100)}%` }}
+          />
+        </div>
       </div>
-    </div>
+    </section>
   );
 };
 
-const EmptyState = ({ message }) => (
-  <div className="mt-4 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-500">
+const StatsTile = ({ label, value, helper, tone = "bg-slate-100 text-slate-600" }) => (
+  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${tone}`}>
+      {label}
+    </span>
+    <p className="mt-4 text-3xl font-semibold text-slate-900">{value}</p>
+    <p className="mt-1 text-sm text-slate-500">{helper}</p>
+  </div>
+);
+
+const EmptyState = ({ message, compact = false }) => (
+  <div
+    className={`rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-center text-sm text-slate-500 ${
+      compact ? "p-8" : "p-12"
+    }`}
+  >
     {message}
   </div>
 );
 
 const ChangeDetails = ({ details, summary }) => {
-  if (Array.isArray(details) && details.length > 0) {
-    return (
-      <dl className="mt-3 space-y-2 text-sm text-gray-600">
-        {details.map((detail, index) => {
-          const key = detail.field || `${detail.label}-${index}`;
-          const hasPrevious = detail.previous && detail.previous.length > 0;
-          const hasCurrent = detail.current && detail.current.length > 0;
-          let valueLabel = "Updated";
+  const hasDetails = Array.isArray(details) && details.length > 0;
+  const [isExpanded, setIsExpanded] = useState(false);
 
-          if (hasPrevious && hasCurrent) {
-            valueLabel =
-              detail.previous === detail.current
-                ? detail.current
-                : `${detail.previous} → ${detail.current}`;
-          } else if (hasCurrent) {
-            valueLabel = detail.current;
-          } else if (hasPrevious) {
-            valueLabel = detail.previous;
-          }
+  if (!hasDetails) {
+    if (summary) {
+      return <p className="mt-4 text-sm text-slate-600">{summary}</p>;
+    }
 
-          return (
-            <div key={key} className="flex flex-col gap-0.5">
-              <dt className="font-medium text-gray-500">{detail.label}</dt>
-              <dd className="text-gray-700">{valueLabel}</dd>
-            </div>
-          );
-        })}
-      </dl>
-    );
+    return null;
   }
 
-  if (summary) {
-    return <p className="mt-3 text-sm text-gray-500">{summary}</p>;
-  }
+  const toggleExpanded = () => {
+    setIsExpanded((previous) => !previous);
+  };
 
-  return null;
+  return (
+    <div className="mt-4">
+      {summary && <p className="text-sm text-slate-600">{summary}</p>}
+      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60">
+        <button
+          type="button"
+          onClick={toggleExpanded}
+          aria-expanded={isExpanded}
+          className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left text-sm font-semibold text-[#316fb7] transition hover:text-[#245c94]"
+        >
+          <span>
+            {isExpanded
+              ? "Hide maintenance change log"
+              : `View maintenance change log (${details.length})`}
+          </span>
+          <span aria-hidden="true">{isExpanded ? "−" : "+"}</span>
+        </button>
+        {isExpanded && (
+          <dl className="divide-y divide-slate-200 text-sm text-slate-600">
+            {details.map((detail, index) => {
+              const key = detail.field || `${detail.label}-${index}`;
+              const hasPrevious = detail.previous && detail.previous.length > 0;
+              const hasCurrent = detail.current && detail.current.length > 0;
+              let valueLabel = "Updated";
+
+              if (hasPrevious && hasCurrent) {
+                valueLabel =
+                  detail.previous === detail.current
+                    ? detail.current
+                    : `${detail.previous} → ${detail.current}`;
+              } else if (hasCurrent) {
+                valueLabel = detail.current;
+              } else if (hasPrevious) {
+                valueLabel = detail.previous;
+              }
+
+              return (
+                <div key={key} className="grid gap-1 px-4 py-3 sm:grid-cols-[200px_1fr]">
+                  <dt className="font-medium text-slate-500">{detail.label}</dt>
+                  <dd className="text-slate-700">{valueLabel || "—"}</dd>
+                </div>
+              );
+            })}
+          </dl>
+        )}
+      </div>
+    </div>
+  );
 };
 
 const DashboardPage = () => {
@@ -483,237 +552,280 @@ const DashboardPage = () => {
   const hasAnyData =
     data.wordpress.length > 0 || data.supportpal.length > 0;
 
-  return (
-    <div className="space-y-6 bg-gray-50 p-6">
-      <header className="flex flex-col gap-4 rounded-2xl bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Maintenance Dashboard</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Track confirmed updates and outstanding maintenance work across WordPress and SupportPal environments.
-          </p>
-        </div>
-        <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
-          {lastUpdated && (
-            <span className="text-sm text-gray-500">
-              Last refreshed {formatDateTime(lastUpdated)}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={loadData}
-            disabled={isLoading}
-            className="inline-flex items-center gap-2 rounded-lg border border-[#316fb7] px-4 py-2 text-sm font-semibold text-[#316fb7] transition-colors hover:bg-[#316fb7]/10 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isLoading ? "Refreshing..." : "Refresh"}
-          </button>
-        </div>
-      </header>
+  const totalSystems = data.wordpress.length + data.supportpal.length;
+  const totalConfirmed = wordpressConfirmed.length + supportpalConfirmed.length;
+  const totalPending = pendingItems.length;
+  const changeLogEntries = combinedConfirmed.reduce((count, item) => {
+    if (!Array.isArray(item.changeDetails)) {
+      return count;
+    }
 
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm">{error}</p>
+    return count + item.changeDetails.length;
+  }, 0);
+
+  const mostRecentActivity = combinedConfirmed[0]?.lastCheckedDate
+    ? combinedConfirmed[0].lastCheckedDate
+    : combinedConfirmed[0]?.changeDetectedAt;
+  const latestActivityLabel = mostRecentActivity
+    ? formatDateTime(mostRecentActivity)
+    : "Waiting for confirmations";
+
+  const handleManualRefresh = useCallback(() => {
+    if (isLoading) {
+      return;
+    }
+
+    loadData();
+  }, [isLoading, loadData]);
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-6xl space-y-10 px-4 py-8">
+        <header className="flex flex-col gap-6 rounded-3xl bg-white p-8 shadow-sm md:flex-row md:items-end md:justify-between">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#316fb7]">
+              Maintenance overview
+            </p>
+            <h1 className="text-3xl font-bold text-slate-900 md:text-4xl">
+              Dashboard
+            </h1>
+            <p className="max-w-2xl text-sm text-slate-600">
+              Review the health of every managed system, keep track of confirmed maintenance, and spot what still needs your attention.
+            </p>
+          </div>
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+            {lastUpdated && (
+              <span className="text-sm text-slate-500">
+                Synced {formatDateTime(lastUpdated)}
+              </span>
+            )}
             <button
               type="button"
-              onClick={loadData}
+              onClick={handleManualRefresh}
               disabled={isLoading}
-              className="inline-flex items-center justify-center rounded-md bg-red-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-full bg-[#316fb7] px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#245c94] focus:outline-none focus:ring-2 focus:ring-[#93c5fd] disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              Retry
+              {isLoading ? "Refreshing…" : "Refresh data"}
             </button>
           </div>
-        </div>
-      )}
+        </header>
 
-      {isLoading && !hasAnyData ? (
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="h-6 w-48 animate-pulse rounded bg-gray-200" />
-          <div className="mt-4 space-y-3">
-            <div className="h-4 w-full animate-pulse rounded bg-gray-200" />
-            <div className="h-4 w-5/6 animate-pulse rounded bg-gray-200" />
-            <div className="h-4 w-3/4 animate-pulse rounded bg-gray-200" />
+        {error && (
+          <div
+            role="alert"
+            className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700 shadow-sm"
+          >
+            {error}
           </div>
-        </div>
-      ) : (
-        <>
-          <section>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <SummaryCard
-                title="WordPress maintenance"
-                schedule={WORDPRESS_SCHEDULE_DESCRIPTION}
-                stats={wordpressStats}
-              />
-              <SummaryCard
-                title="SupportPal maintenance"
-                schedule={SUPPORTPAL_SCHEDULE_DESCRIPTION}
-                stats={supportpalStats}
-              />
-              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-                  Upcoming resets
-                </h2>
-                <ul className="mt-4 space-y-3 text-sm text-gray-700">
-                  <li>
-                    <span className="font-semibold text-gray-900">WordPress:</span>{" "}
-                    Resets every Monday at 00:00 ({TIME_ZONE})
-                  </li>
-                  <li>
-                    <span className="font-semibold text-gray-900">SupportPal:</span>{" "}
-                    Resets on the 1st day of each month at 00:00 ({TIME_ZONE})
-                  </li>
+        )}
+
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatsTile
+            label="Cycle coverage"
+            value={`${totalConfirmed}/${totalSystems || 0}`}
+            helper="Confirmed this cycle"
+            tone="bg-emerald-100 text-emerald-700"
+          />
+          <StatsTile
+            label="Pending reviews"
+            value={totalPending}
+            helper="Awaiting confirmation"
+            tone="bg-amber-100 text-amber-700"
+          />
+          <StatsTile
+            label="Change log entries"
+            value={changeLogEntries}
+            helper="Across recent confirmations"
+            tone="bg-indigo-100 text-indigo-700"
+          />
+          <StatsTile
+            label="Latest activity"
+            value={latestActivityLabel}
+            helper="Most recent confirmation"
+          />
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-2">
+          <SummaryCard
+            title="WordPress maintenance"
+            schedule={WORDPRESS_SCHEDULE_DESCRIPTION}
+            stats={wordpressStats}
+            accent="bg-gradient-to-r from-[#38bdf8] to-[#0ea5e9]"
+          />
+          <SummaryCard
+            title="SupportPal maintenance"
+            schedule={SUPPORTPAL_SCHEDULE_DESCRIPTION}
+            stats={supportpalStats}
+            accent="bg-gradient-to-r from-emerald-400 to-emerald-600"
+          />
+        </section>
+
+        {isLoading && !hasAnyData ? (
+          <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500 shadow-sm">
+            Loading maintenance data…
+          </div>
+        ) : (
+          <div className="space-y-8">
+            <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+              <div className="flex flex-col gap-2 md:flex-row md:items-baseline md:justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900">
+                    Confirmed maintenance
+                  </h2>
+                  <p className="text-sm text-slate-600">
+                    All systems confirmed for the current cycle, ordered by most recent activity.
+                  </p>
+                </div>
+                <span className="text-sm text-slate-500">
+                  {combinedConfirmed.length} {combinedConfirmed.length === 1 ? "item" : "items"}
+                </span>
+              </div>
+
+              {combinedConfirmed.length ? (
+                <ul className="mt-6 space-y-4">
+                  {combinedConfirmed.map((item) => (
+                    <li
+                      key={`${item.type}-${item.id}`}
+                      className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-5 transition hover:border-[#316fb7]/40 hover:bg-white hover:shadow-sm lg:flex-row lg:items-center lg:justify-between"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span
+                            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                              item.type === "WordPress"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-emerald-100 text-emerald-700"
+                            }`}
+                          >
+                            {item.type}
+                          </span>
+                          <h3 className="text-lg font-semibold text-slate-900">
+                            {item.name}
+                          </h3>
+                        </div>
+                        {item.maintenanceNotes && (
+                          <p className="text-sm text-slate-600">
+                            {item.maintenanceNotes}
+                          </p>
+                        )}
+                        {item.url && (
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex text-sm font-medium text-[#316fb7] hover:text-[#245c94] hover:underline"
+                          >
+                            {item.url}
+                          </a>
+                        )}
+                        <ChangeDetails
+                          details={item.changeDetails}
+                          summary={item.changeSummary}
+                        />
+                      </div>
+                      <div className="flex flex-col items-start gap-2 text-sm text-slate-600 lg:items-end">
+                        <span
+                          className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(
+                            item.status
+                          )}`}
+                        >
+                          {formatStatusLabel(item.status)}
+                        </span>
+                        <span className="font-medium text-slate-700">
+                          Confirmed {formatDateTime(item.lastCheckedDate)}
+                        </span>
+                        {item.changeDetectedAt && (
+                          <span>
+                            Changes detected {formatDateTime(item.changeDetectedAt)}
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
                 </ul>
-                <p className="mt-4 text-xs text-gray-500">
-                  Confirmed updates remain visible here until the next scheduled reset for each platform.
-                </p>
+              ) : (
+                <EmptyState
+                  message="No confirmed updates recorded for this cycle just yet."
+                  compact
+                />
+              )}
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+              <div className="flex flex-col gap-2 md:flex-row md:items-baseline md:justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900">
+                    Pending follow-up
+                  </h2>
+                  <p className="text-sm text-slate-600">
+                    Systems that still need review and confirmation for the active maintenance window.
+                  </p>
+                </div>
+                <span className="text-sm text-slate-500">
+                  {totalPending} {totalPending === 1 ? "item" : "items"}
+                </span>
               </div>
-            </div>
-          </section>
 
-          <section>
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Recent confirmed updates
-                </h2>
-                <p className="text-sm text-gray-600">
-                  WordPress confirmations reset weekly, while SupportPal confirmations reset monthly.
-                </p>
-              </div>
-            </div>
-
-            {combinedConfirmed.length ? (
-              <ul className="mt-4 divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                {combinedConfirmed.map((item) => (
-                  <li
-                    key={`${item.type}-${item.id}`}
-                    className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            item.type === "WordPress"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-emerald-100 text-emerald-700"
-                          }`}
-                        >
-                          {item.type}
-                        </span>
-                        <h3 className="text-base font-semibold text-gray-900">
-                          {item.name}
-                        </h3>
+              {pendingItems.length ? (
+                <ul className="mt-6 space-y-4">
+                  {pendingItems.map((item) => (
+                    <li
+                      key={`pending-${item.type}-${item.id}`}
+                      className="flex flex-col gap-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-5 transition hover:border-[#316fb7]/40 hover:bg-white hover:shadow-sm lg:flex-row lg:items-center lg:justify-between"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span
+                            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                              item.type === "WordPress"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-emerald-100 text-emerald-700"
+                            }`}
+                          >
+                            {item.type}
+                          </span>
+                          <h3 className="text-lg font-semibold text-slate-900">
+                            {item.name}
+                          </h3>
+                        </div>
+                        {item.url && (
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex text-sm font-medium text-[#316fb7] hover:text-[#245c94] hover:underline"
+                          >
+                            {item.url}
+                          </a>
+                        )}
                       </div>
-                      {item.maintenanceNotes && (
-                        <p className="mt-1 text-sm text-gray-600">
-                          {item.maintenanceNotes}
-                        </p>
-                      )}
-                      {item.url && (
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-1 inline-flex text-sm text-[#316fb7] hover:underline"
-                        >
-                          {item.url}
-                        </a>
-                      )}
-                      <ChangeDetails
-                        details={item.changeDetails}
-                        summary={item.changeSummary}
-                      />
-                    </div>
-                    <div className="flex flex-col items-start gap-2 text-sm text-gray-500 sm:items-end">
-                      <span
-                        className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(
-                          item.status
-                        )}`}
-                      >
-                        {formatStatusLabel(item.status)}
-                      </span>
-                      <span>
-                        Confirmed {formatDateTime(item.lastCheckedDate)}
-                      </span>
-                      {item.changeDetectedAt && (
-                        <span>
-                          Changes recorded {formatDateTime(item.changeDetectedAt)}
-                        </span>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyState message="No confirmed updates have been recorded for the current maintenance cycles yet." />
-            )}
-          </section>
-
-          <section>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">
-                Pending follow-up
-              </h2>
-              <p className="text-sm text-gray-600">
-                Websites and servers that still need to be reviewed and confirmed for this maintenance cycle.
-              </p>
-            </div>
-
-            {pendingItems.length ? (
-              <ul className="mt-4 divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                {pendingItems.map((item) => (
-                  <li
-                    key={`pending-${item.type}-${item.id}`}
-                    className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-col items-start gap-2 text-sm text-slate-600 lg:items-end">
                         <span
-                          className={`inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            item.type === "WordPress"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-emerald-100 text-emerald-700"
-                          }`}
+                          className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(
+                            item.status
+                          )}`}
                         >
-                          {item.type}
+                          {formatStatusLabel(item.status)}
                         </span>
-                        <h3 className="text-base font-semibold text-gray-900">
-                          {item.name}
-                        </h3>
+                        <span className="font-medium text-slate-700">
+                          {item.lastCheckedDate
+                            ? `Last checked ${formatDateTime(item.lastCheckedDate)}`
+                            : "Awaiting first check"}
+                        </span>
                       </div>
-                      {item.url && (
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-1 inline-flex text-sm text-[#316fb7] hover:underline"
-                        >
-                          {item.url}
-                        </a>
-                      )}
-                    </div>
-                    <div className="flex flex-col items-start gap-2 text-sm text-gray-500 sm:items-end">
-                      <span
-                        className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(
-                          item.status
-                        )}`}
-                      >
-                        {formatStatusLabel(item.status)}
-                      </span>
-                      <span>
-                        {item.lastCheckedDate
-                          ? `Last checked ${formatDateTime(item.lastCheckedDate)}`
-                          : "Awaiting first check"}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyState message="All tracked systems have been confirmed for the current maintenance schedules." />
-            )}
-          </section>
-        </>
-      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyState
+                  message="Everything tracked has been confirmed. Nice work!"
+                  compact
+                />
+              )}
+            </section>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
