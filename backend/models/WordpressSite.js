@@ -1,4 +1,6 @@
-import mongoose from 'mongoose';
+import { getMongoose } from '../database/mongo.js';
+
+const mongoose = await getMongoose();
 
 const WP_COLLECTION = process.env.MONGO_WP_COLLECTION || 'wordpress_sites';
 

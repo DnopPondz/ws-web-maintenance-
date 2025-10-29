@@ -30,7 +30,11 @@ async function start() {
       console.log(`🚀 Server running at http://localhost:${port}`);
     });
   } catch (error) {
-    console.error('Failed to start server:', error);
+    if (error?.code === 'MONGOOSE_NOT_INSTALLED') {
+      console.error(error.message);
+    } else {
+      console.error('Failed to start server:', error);
+    }
     process.exit(1);
   }
 }

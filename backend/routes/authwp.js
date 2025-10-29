@@ -1,8 +1,10 @@
 import express from 'express';
-import mongoose from 'mongoose';
 
+import { getMongoose } from '../database/mongo.js';
 import { checkAdminRole } from '../middleware/checkAdminRole.js';
 import WordpressSite from '../models/WordpressSite.js';
+
+const mongoose = await getMongoose();
 
 const router = express.Router();
 

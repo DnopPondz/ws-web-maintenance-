@@ -1,4 +1,6 @@
-import mongoose from 'mongoose';
+import { getMongoose } from '../database/mongo.js';
+
+const mongoose = await getMongoose();
 
 const USERS_COLLECTION = process.env.MONGO_USERS_COLLECTION || 'users';
 
