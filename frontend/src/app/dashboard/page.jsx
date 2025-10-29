@@ -645,7 +645,7 @@ const DashboardPage = () => {
                       )}
                       <ChangeDetails
                         details={item.changeDetails}
-                        summary={item.changeSummary}
+                        // summary={item.changeSummary}
                       />
                     </div>
                     <div className="flex flex-col items-start gap-2 text-sm text-gray-500 sm:items-end">
