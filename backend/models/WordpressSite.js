@@ -18,6 +18,32 @@ const pluginSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const changeDetailSchema = new mongoose.Schema(
+  {
+    field: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    label: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    previous: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    current: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+  },
+  { _id: false }
+);
+
 const wordpressSiteSchema = new mongoose.Schema(
   {
     name: {
@@ -68,6 +94,19 @@ const wordpressSiteSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    lastChangeSummary: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    lastChangeDetails: {
+      type: [changeDetailSchema],
+      default: [],
+    },
+    lastChangeDetectedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -80,6 +119,9 @@ const wordpressSiteSchema = new mongoose.Schema(
         if (ret.lastChecked instanceof Date) {
           ret.lastChecked = ret.lastChecked.toISOString();
         }
+        if (ret.lastChangeDetectedAt instanceof Date) {
+          ret.lastChangeDetectedAt = ret.lastChangeDetectedAt.toISOString();
+        }
         delete ret._id;
         return ret;
       },
@@ -91,6 +133,9 @@ const wordpressSiteSchema = new mongoose.Schema(
         ret.id = ret._id.toString();
         if (ret.lastChecked instanceof Date) {
           ret.lastChecked = ret.lastChecked.toISOString();
+        }
+        if (ret.lastChangeDetectedAt instanceof Date) {
+          ret.lastChangeDetectedAt = ret.lastChangeDetectedAt.toISOString();
         }
         delete ret._id;
         return ret;

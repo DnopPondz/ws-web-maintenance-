@@ -94,10 +94,51 @@ const deriveId = (site, index) => {
   return String(index + 1);
 };
 
+const normaliseChangeDetails = (rawDetails) => {
+  if (!Array.isArray(rawDetails)) {
+    return [];
+  }
+
+  return rawDetails
+    .map((detail, index) => {
+      const field = detail?.field ? String(detail.field) : undefined;
+      const labelCandidates = [detail?.label, detail?.field];
+      const labelSource = labelCandidates.find(
+        (candidate) => typeof candidate === "string" && candidate.trim()
+      );
+      const label = labelSource ? labelSource.trim() : `Change ${index + 1}`;
+
+      const normaliseValue = (value) => {
+        if (value === undefined || value === null) {
+          return "";
+        }
+
+        if (typeof value === "string") {
+          return value.trim();
+        }
+
+        return String(value).trim();
+      };
+
+      return {
+        field,
+        label,
+        previous: normaliseValue(detail?.previous),
+        current: normaliseValue(detail?.current),
+      };
+    })
+    .filter((detail) => detail.label);
+};
+
 const normaliseWordpressSites = (sites = []) =>
   sites.map((site, index) => {
     const lastChecked = site?.lastChecked ?? site?.last_checked ?? null;
     const lastCheckedDate = getValidDate(lastChecked);
+    const changeDetailsSource =
+      site?.lastChangeDetails ?? site?.changeDetails ?? [];
+    const changeDetectedAtSource =
+      site?.lastChangeDetectedAt ?? site?.changeDetectedAt ?? null;
+    const changeDetectedAtDate = getValidDate(changeDetectedAtSource);
 
     return {
       id: deriveId(site, index),
@@ -110,6 +151,10 @@ const normaliseWordpressSites = (sites = []) =>
       lastChecked,
       lastCheckedDate,
       type: "WordPress",
+      changeSummary:
+        site?.lastChangeSummary ?? site?.changeSummary ?? "",
+      changeDetails: normaliseChangeDetails(changeDetailsSource),
+      changeDetectedAt: changeDetectedAtDate,
     };
   });
 
@@ -117,6 +162,11 @@ const normaliseSupportpalSites = (sites = []) =>
   sites.map((site, index) => {
     const lastChecked = site?.lastChecked ?? site?.last_checked ?? null;
     const lastCheckedDate = getValidDate(lastChecked);
+    const changeDetailsSource =
+      site?.lastChangeDetails ?? site?.changeDetails ?? [];
+    const changeDetectedAtSource =
+      site?.lastChangeDetectedAt ?? site?.changeDetectedAt ?? null;
+    const changeDetectedAtDate = getValidDate(changeDetectedAtSource);
 
     return {
       id: deriveId(site, index),
@@ -129,6 +179,10 @@ const normaliseSupportpalSites = (sites = []) =>
       lastChecked,
       lastCheckedDate,
       type: "SupportPal",
+      changeSummary:
+        site?.lastChangeSummary ?? site?.changeSummary ?? "",
+      changeDetails: normaliseChangeDetails(changeDetailsSource),
+      changeDetectedAt: changeDetectedAtDate,
     };
   });
 
@@ -228,6 +282,45 @@ const EmptyState = ({ message }) => (
     {message}
   </div>
 );
+
+const ChangeDetails = ({ details, summary }) => {
+  if (Array.isArray(details) && details.length > 0) {
+    return (
+      <dl className="mt-3 space-y-2 text-sm text-gray-600">
+        {details.map((detail, index) => {
+          const key = detail.field || `${detail.label}-${index}`;
+          const hasPrevious = detail.previous && detail.previous.length > 0;
+          const hasCurrent = detail.current && detail.current.length > 0;
+          let valueLabel = "Updated";
+
+          if (hasPrevious && hasCurrent) {
+            valueLabel =
+              detail.previous === detail.current
+                ? detail.current
+                : `${detail.previous} → ${detail.current}`;
+          } else if (hasCurrent) {
+            valueLabel = detail.current;
+          } else if (hasPrevious) {
+            valueLabel = detail.previous;
+          }
+
+          return (
+            <div key={key} className="flex flex-col gap-0.5">
+              <dt className="font-medium text-gray-500">{detail.label}</dt>
+              <dd className="text-gray-700">{valueLabel}</dd>
+            </div>
+          );
+        })}
+      </dl>
+    );
+  }
+
+  if (summary) {
+    return <p className="mt-3 text-sm text-gray-500">{summary}</p>;
+  }
+
+  return null;
+};
 
 const DashboardPage = () => {
   const [data, setData] = useState({ wordpress: [], supportpal: [] });
@@ -525,6 +618,10 @@ const DashboardPage = () => {
                           {item.url}
                         </a>
                       )}
+                      <ChangeDetails
+                        details={item.changeDetails}
+                        summary={item.changeSummary}
+                      />
                     </div>
                     <div className="flex flex-col items-start gap-2 text-sm text-gray-500 sm:items-end">
                       <span
@@ -537,6 +634,11 @@ const DashboardPage = () => {
                       <span>
                         Confirmed {formatDateTime(item.lastCheckedDate)}
                       </span>
+                      {item.changeDetectedAt && (
+                        <span>
+                          Changes recorded {formatDateTime(item.changeDetectedAt)}
+                        </span>
+                      )}
                     </div>
                   </li>
                 ))}
