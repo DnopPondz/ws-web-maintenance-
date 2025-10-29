@@ -134,7 +134,7 @@ apiClient.interceptors.response.use(
                 const { accessToken: newAccessToken, user } = res.data || {};
 
                 if (!newAccessToken) {
-                  throw new Error('ไม่พบโทเค็นใหม่ กรุณาเข้าสู่ระบบอีกครั้ง');
+                  throw new Error('New token not found. Please sign in again.');
                 }
 
                 storeAccessSession({ accessToken: newAccessToken, user });
@@ -167,19 +167,19 @@ apiClient.interceptors.response.use(
             (refreshErr?.response?.data &&
               (refreshErr.response.data.message || refreshErr.response.data.error)) ||
             refreshErr?.message ||
-            'ไม่สามารถรีเฟรชเซสชันได้';
+            'Unable to refresh the session.';
 
           return Promise.reject(new Error(message));
         }
       }
 
       clearStoredSession();
-      return Promise.reject(new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่'));
+      return Promise.reject(new Error('Session expired. Please sign in again.'));
     }
 
     if (isBrowser() && shouldAttemptRefresh(error)) {
       clearStoredSession();
-      return Promise.reject(new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่'));
+      return Promise.reject(new Error('Session expired. Please sign in again.'));
     }
 
     return Promise.reject(error);

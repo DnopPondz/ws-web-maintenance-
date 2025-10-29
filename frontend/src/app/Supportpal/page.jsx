@@ -9,17 +9,17 @@ import {
   deleteSupportpalSite,
 } from "../lib/api";
 
-let thaiDateFormatter;
+let englishDateFormatter;
 
-const getThaiDateFormatter = () => {
-  if (!thaiDateFormatter) {
-    thaiDateFormatter = new Intl.DateTimeFormat("th-TH", {
+const getEnglishDateFormatter = () => {
+  if (!englishDateFormatter) {
+    englishDateFormatter = new Intl.DateTimeFormat("en-US", {
       dateStyle: "medium",
       timeStyle: "short",
       timeZone: "Asia/Bangkok",
     });
   }
-  return thaiDateFormatter;
+  return englishDateFormatter;
 };
 
 const formatLastChecked = (value) => {
@@ -33,7 +33,7 @@ const formatLastChecked = (value) => {
       return value;
     }
 
-    return getThaiDateFormatter().format(date);
+    return getEnglishDateFormatter().format(date);
   } catch (error) {
     return value;
   }
@@ -200,9 +200,9 @@ const SpDashboard = () => {
       console.error("Failed to load SupportPal sites:", err);
       const message = err?.message || "";
       const friendlyMessage = /collection|Mongo/i.test(message)
-        ? `${message} ตรวจสอบการตั้งค่า MongoDB หรือสร้าง collection สำหรับ SupportPal`
+        ? `${message} Please verify the MongoDB configuration or create the SupportPal collection`
         : message;
-      setError(friendlyMessage || "ไม่สามารถโหลดข้อมูลเซิร์ฟเวอร์ได้");
+      setError(friendlyMessage || "Unable to load server data");
       if (!initialSitesRef.current.length) {
         setSites([]);
       }
@@ -221,7 +221,7 @@ const SpDashboard = () => {
       if (!targetSite) {
         setSiteMutation(siteId, {
           status: "error",
-          error: "ไม่พบเซิร์ฟเวอร์ที่ต้องการบันทึก",
+          error: "The server to save could not be found",
           action,
         });
         return false;
@@ -253,7 +253,7 @@ const SpDashboard = () => {
         console.error("Failed to persist SupportPal site:", err);
         setSiteMutation(siteId, {
           status: "error",
-          error: err.message || "ไม่สามารถบันทึกข้อมูลเซิร์ฟเวอร์ได้",
+          error: err.message || "Unable to save the server data",
           action,
         });
 
@@ -352,7 +352,7 @@ const SpDashboard = () => {
     if (!deleteDialog.isChecked) {
       setDeleteDialog((prev) => ({
         ...prev,
-        error: "กรุณาติ๊กเพื่อยืนยันการลบ",
+        error: "Please tick the checkbox to confirm the deletion",
       }));
       return;
     }
@@ -366,14 +366,14 @@ const SpDashboard = () => {
     try {
       await deleteSupportpalSite(deleteDialog.site.id);
       await loadSites({ showLoader: false });
-      showBanner(`ลบเซิร์ฟเวอร์ ${deleteDialog.site.name} เรียบร้อยแล้ว`, "success");
+      showBanner(`Deleted server ${deleteDialog.site.name} successfully`, "success");
       closeDeleteDialog();
     } catch (err) {
       console.error("Failed to delete SupportPal site:", err);
       setDeleteDialog((prev) => ({
         ...prev,
         isDeleting: false,
-        error: err.message || "ไม่สามารถลบเซิร์ฟเวอร์ได้",
+        error: err.message || "Unable to delete the server",
       }));
     }
   };
@@ -398,25 +398,25 @@ const SpDashboard = () => {
       { showLoader: false, action: "confirm" }
     )
       .then(() => {
-        showBanner("ยืนยันการอัปเดตเรียบร้อยแล้ว!", "success");
+        showBanner("Update confirmed successfully!", "success");
         setCurrentPage("confirmed");
       })
       .catch((err) => {
-        showBanner(err.message || "ไม่สามารถยืนยันการอัปเดตได้", "error");
+        showBanner(err.message || "Unable to confirm the update", "error");
       });
   };
 
   const handleSaveMaintenanceNotes = (siteId) => {
     const siteName =
-      sitesRef.current.find((item) => item.id === siteId)?.name || "เซิร์ฟเวอร์";
+      sitesRef.current.find((item) => item.id === siteId)?.name || "Server";
 
     persistSite(siteId, {}, { showLoader: false, action: "notes" })
       .then(() => {
-        showBanner(`บันทึกหมายเหตุของ ${siteName} เรียบร้อยแล้ว`, "success");
+        showBanner(`Saved notes for ${siteName} successfully`, "success");
       })
       .catch((err) => {
         showBanner(
-          err.message || `ไม่สามารถบันทึกหมายเหตุของ ${siteName} ได้`,
+          err.message || `Unable to save notes for ${siteName}`,
           "error"
         );
       });
@@ -440,12 +440,12 @@ const SpDashboard = () => {
 
       await loadSites({ showLoader: false });
       showBanner(
-        "รีเซ็ตรายการที่ตรวจสอบแล้วสำหรับรอบบำรุงรักษาเดือนใหม่เรียบร้อยแล้ว",
+        "Reset confirmed entries for the new monthly maintenance cycle",
         "info"
       );
     } catch (error) {
       console.error("Failed to reset confirmed SupportPal sites:", error);
-      showBanner(error?.message || "ไม่สามารถรีเซ็ตสถานะเซิร์ฟเวอร์ได้", "error");
+      showBanner(error?.message || "Unable to reset the server status", "error");
     }
   }, [loadSites, persistSite, showBanner]);
 
@@ -542,7 +542,7 @@ const SpDashboard = () => {
 
   const saveChanges = async () => {
     if (!formData.name || !formData.url) {
-      setFormStatus({ type: "error", message: "กรุณากรอกชื่อเซิร์ฟเวอร์และ URL" });
+      setFormStatus({ type: "error", message: "Please enter the server name and URL" });
       return;
     }
 
@@ -551,7 +551,7 @@ const SpDashboard = () => {
     } catch (error) {
       setFormStatus({
         type: "error",
-        message: "กรุณากรอก URL ที่ถูกต้อง (เช่น https://support.example.com)",
+        message: "Please provide a valid URL (e.g. https://support.example.com)",
       });
       return;
     }
@@ -568,7 +568,7 @@ const SpDashboard = () => {
       isConfirmed: Boolean(formData.isConfirmed),
     };
 
-    const siteLabel = formData.name || editingSite?.name || "เซิร์ฟเวอร์";
+    const siteLabel = formData.name || editingSite?.name || "Server";
 
     setFormStatus({ type: null, message: "" });
     setIsSavingChanges(true);
@@ -582,7 +582,7 @@ const SpDashboard = () => {
 
         await createSupportpalSite(payload);
         await loadSites({ showLoader: false });
-        showBanner(`เพิ่มเซิร์ฟเวอร์ ${siteLabel} เรียบร้อยแล้ว`, "success");
+        showBanner(`Added server ${siteLabel} successfully`, "success");
         goBackToDashboard();
       } else if (editingSite) {
         const payload = {
@@ -592,19 +592,19 @@ const SpDashboard = () => {
 
         await updateSupportpalSite(editingSite.id, payload);
         await loadSites({ showLoader: false });
-        showBanner(`บันทึกการแก้ไข ${siteLabel} เรียบร้อยแล้ว`, "success");
+        showBanner(`Saved changes for ${siteLabel} successfully`, "success");
         goBackToDashboard();
       }
     } catch (err) {
       console.error("Failed to save SupportPal site:", err);
       const message = err?.message || "";
       const friendlyMessage = /collection|Mongo/i.test(message)
-        ? `${message} ตรวจสอบการตั้งค่า MongoDB หรือสิทธิ์การเข้าถึง collection`
+        ? `${message} Please verify the MongoDB configuration or the collection permissions`
         : message;
       setFormStatus({
         type: "error",
         message:
-          friendlyMessage || "ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง",
+          friendlyMessage || "Unable to save the data. Please try again.",
       });
     } finally {
       setIsSavingChanges(false);
@@ -643,13 +643,13 @@ const SpDashboard = () => {
     return (
       <div className="p-4 max-w-3xl mx-auto space-y-4">
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-6 text-center">
-          <h1 className="text-xl font-semibold mb-2">เกิดข้อผิดพลาดในการดึงข้อมูล</h1>
+          <h1 className="text-xl font-semibold mb-2">An error occurred while fetching data</h1>
           <p className="text-sm mb-4">{error}</p>
           <button
             onClick={loadSites}
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
           >
-            ลองอีกครั้ง
+            Try again
           </button>
         </div>
       </div>
@@ -660,7 +660,7 @@ const SpDashboard = () => {
     return (
       <div className="p-4 max-w-6xl mx-auto">
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 text-center text-gray-600">
-          กำลังโหลดข้อมูลเซิร์ฟเวอร์ SupportPal...
+          Loading SupportPal server data...
         </div>
       </div>
     );
@@ -680,9 +680,9 @@ const SpDashboard = () => {
 
   if ((currentPage === "edit" && editingSite) || currentPage === "add") {
     const isEditing = currentPage === "edit";
-    const pageTitle = isEditing ? "แก้ไขข้อมูลเซิร์ฟเวอร์" : "เพิ่มเซิร์ฟเวอร์ใหม่";
+    const pageTitle = isEditing ? "Edit server details" : "Add new server";
     const pageIcon = isEditing ? "✏️" : "➕";
-    const saveButtonText = isEditing ? "💾 บันทึกการแก้ไข" : "➕ เพิ่มเซิร์ฟเวอร์";
+    const saveButtonText = isEditing ? "💾 Save changes" : "➕ Add server";
 
     return (
       <div className="p-4 max-w-4xl mx-auto">
@@ -696,7 +696,7 @@ const SpDashboard = () => {
                 onClick={goBackToDashboard}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium transition-colors"
               >
-                ← กลับไปหน้าหลัก
+                ← Back to dashboard
               </button>
             </div>
           </div>
@@ -716,7 +716,7 @@ const SpDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  ชื่อเซิร์ฟเวอร์ *
+                  Server name *
                 </label>
                 <input
                   type="text"
@@ -755,22 +755,22 @@ const SpDashboard = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  สถานะ
+                  Status
                 </label>
                 <select
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   value={formData.status || ""}
                   onChange={(e) => handleFormChange("status", e.target.value)}
                 >
-                  <option value="healthy">Healthy (ปกติ)</option>
-                  <option value="warning">Warning (เตือน)</option>
-                  <option value="error">Error (ข้อผิดพลาด)</option>
+                  <option value="healthy">Healthy (Normal)</option>
+                  <option value="warning">Warning (Alert)</option>
+                  <option value="error">Error (Issue)</option>
                 </select>
               </div>
             </div>
 
             <div className="border-t pt-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">🖥️ เวอร์ชันระบบ</h3>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">🖥️ System versions</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -825,12 +825,12 @@ const SpDashboard = () => {
 
             <div className="border-t pt-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                📝 รายละเอียดการบำรุงรักษา
+                📝 Maintenance details
               </label>
               <textarea
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                 rows={4}
-                placeholder="เพิ่มรายละเอียด เช่น อัปเดต SupportPal, ปรับปรุงฐานข้อมูล, อัปเดต PHP/Nginx, ล้างแคช ฯลฯ"
+                placeholder="Add details such as updating SupportPal, improving the database, updating PHP/Nginx, clearing cache, etc."
                 value={formData.maintenanceNotes || ""}
                 onChange={(e) => handleFormChange("maintenanceNotes", e.target.value)}
               />
@@ -846,13 +846,13 @@ const SpDashboard = () => {
                     : "bg-blue-600 hover:bg-blue-700"
                 }`}
               >
-                {isSavingChanges ? "กำลังบันทึก..." : saveButtonText}
+                {isSavingChanges ? "Saving..." : saveButtonText}
               </button>
               <button
                 onClick={goBackToDashboard}
                 className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium transition-colors"
               >
-                ยกเลิก
+                Cancel
               </button>
             </div>
           </div>
@@ -863,7 +863,7 @@ const SpDashboard = () => {
 
   const currentPageSites = getCurrentPageSites();
   const pageTitle =
-    currentPage === "confirmed" ? "เซิร์ฟเวอร์ที่ตรวจสอบแล้ว" : "SupportPal Maintenance Dashboard";
+    currentPage === "confirmed" ? "Confirmed servers" : "SupportPal Maintenance Dashboard";
   const pageIcon = currentPage === "confirmed" ? "✅" : "🎫";
 
   return (
@@ -884,20 +884,20 @@ const SpDashboard = () => {
         >
           <span>{banner.message}</span>
           <button onClick={dismissBanner} className="text-sm underline">
-            ปิด
+            Close
           </button>
         </div>
       )}
 
       {error && hasFetchedInitialSites && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4">
-          <div className="font-medium mb-2">เกิดข้อผิดพลาดในการโหลดข้อมูล</div>
+          <div className="font-medium mb-2">An error occurred while loading data</div>
           <div className="text-sm mb-3">{error}</div>
           <button
             onClick={() => loadSites({ showLoader: true })}
             className="px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
           >
-            ลองโหลดใหม่
+            Reload
           </button>
         </div>
       )}
@@ -912,7 +912,7 @@ const SpDashboard = () => {
                 : "text-gray-600 hover:text-gray-800"
             }`}
           >
-            🏠 หน้าหลัก ({sites.filter((s) => !s.isConfirmed).length})
+            🏠 Dashboard ({sites.filter((s) => !s.isConfirmed).length})
           </button>
           <button
             onClick={goToConfirmedPage}
@@ -922,7 +922,7 @@ const SpDashboard = () => {
                 : "text-gray-600 hover:text-gray-800"
             }`}
           >
-            ✅ ตรวจสอบแล้ว ({sites.filter((s) => s.isConfirmed).length})
+            ✅ Confirmed ({sites.filter((s) => s.isConfirmed).length})
           </button>
         </div>
       </div>
@@ -932,7 +932,7 @@ const SpDashboard = () => {
           <div className="relative">
             <input
               type="text"
-              placeholder="ค้นหาเซิร์ฟเวอร์... (ชื่อ หรือ URL)"
+              placeholder="Search servers... (name or URL)"
               className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -953,17 +953,17 @@ const SpDashboard = () => {
                 : "bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
             }`}
           >
-            🔄 รีเฟรชข้อมูล
+            🔄 Refresh data
           </button>
           <div className="text-sm text-gray-600">
-            {currentPageSites.length} เซิร์ฟเวอร์ | คลิกเพื่อดูรายละเอียด
+            {currentPageSites.length} servers | Click to view details
           </div>
           {currentPage === "dashboard" && (
             <button
               onClick={goToAddPage}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors flex items-center gap-2"
             >
-              ➕ เพิ่มเซิร์ฟเวอร์ใหม่
+              ➕ Add new server
             </button>
           )}
         </div>
@@ -976,17 +976,17 @@ const SpDashboard = () => {
           </div>
           <div className="text-xl font-medium text-gray-600 mb-2">
             {searchTerm
-              ? "ไม่พบเซิร์ฟเวอร์ที่ค้นหา"
+              ? "No servers match your search"
               : currentPage === "confirmed"
-                ? "ยังไม่มีเซิร์ฟเวอร์ที่ตรวจสอบแล้ว"
-                : "ยังไม่มีเซิร์ฟเวอร์ในระบบ"}
+                ? "No confirmed servers yet"
+                : "No servers in the system yet"}
           </div>
           <div className="text-gray-500">
             {searchTerm
-              ? "ลองใช้คำค้นหาอื่น หรือตรวจสอบการสะกด"
+              ? "Try a different search term or check the spelling"
               : currentPage === "confirmed"
-                ? "เมื่อยืนยันการอัปเดตเซิร์ฟเวอร์แล้ว จะแสดงที่นี่"
-                : "เริ่มต้นด้วยการเพิ่มเซิร์ฟเวอร์แรก"}
+                ? "Confirmed server updates will appear here"
+                : "Start by adding the first server"}
           </div>
         </div>
       ) : (
@@ -1030,7 +1030,7 @@ const SpDashboard = () => {
                         <div className="text-lg font-semibold text-gray-800">{site.name}</div>
                         {site.isConfirmed && (
                           <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full border border-green-200">
-                            ✅ ตรวจสอบแล้ว
+                            ✅ Confirmed
                           </span>
                         )}
                       </div>
@@ -1081,7 +1081,7 @@ const SpDashboard = () => {
                             : "bg-green-600 hover:bg-green-700"
                         }`}
                       >
-                        {isConfirmSaving ? "กำลังยืนยัน..." : "✅ ยืนยันการอัปเดต"}
+                        {isConfirmSaving ? "Confirming..." : "✅ Confirm update"}
                       </button>
                     )}
                     <button
@@ -1091,7 +1091,7 @@ const SpDashboard = () => {
                       }}
                       className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors"
                     >
-                      ✏️ แก้ไข
+                      ✏️ Edit
                     </button>
                     <button
                       onClick={(e) => {
@@ -1105,7 +1105,7 @@ const SpDashboard = () => {
                           : "bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
                       }`}
                     >
-                      🗑️ ลบเซิร์ฟเวอร์
+                      🗑️ Delete server
                     </button>
                   </div>
 
@@ -1130,12 +1130,12 @@ const SpDashboard = () => {
 
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700">
-                      📝 รายละเอียดการบำรุงรักษา
+                      📝 Maintenance details
                     </label>
                     <textarea
                       className="w-full rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-800 focus:bg-white focus:border-blue-500 focus:outline-none transition-all resize-none"
                       rows={3}
-                      placeholder="เพิ่มรายละเอียด เช่น อัปเดต SupportPal, ปรับปรุงฐานข้อมูล, อัปเดต PHP/Nginx, ล้างแคช ฯลฯ"
+                      placeholder="Add details such as updating SupportPal, improving the database, updating PHP/Nginx, clearing cache, etc."
                       value={site.maintenanceNotes}
                       onChange={(e) => updateMaintenanceNotes(site.id, e.target.value)}
                     />
@@ -1152,14 +1152,14 @@ const SpDashboard = () => {
                         }`}
                       >
                         {isNotesSaving
-                          ? "กำลังบันทึก..."
+                          ? "Saving..."
                           : hasUnsavedChanges
-                            ? "💾 บันทึกหมายเหตุ"
-                            : "✓ บันทึกแล้ว"}
+                            ? "💾 Save notes"
+                            : "✓ Saved"}
                       </button>
                       {lastSavedLabel && (
                         <span className="text-xs text-gray-500">
-                          บันทึกล่าสุด {lastSavedLabel} น.
+                          Last saved {lastSavedLabel}
                         </span>
                       )}
                       {saveError && (
@@ -1177,13 +1177,13 @@ const SpDashboard = () => {
       {deleteDialog.isOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6 space-y-4">
-            <h2 className="text-xl font-semibold text-gray-800">ยืนยันการลบเซิร์ฟเวอร์</h2>
+            <h2 className="text-xl font-semibold text-gray-800">Confirm server deletion</h2>
             <p className="text-gray-600">
-              คุณกำลังจะลบ <span className="font-medium">{deleteDialog.site?.name}</span>. การกระทำนี้ไม่สามารถย้อนกลับได้
+              You are about to delete <span className="font-medium">{deleteDialog.site?.name}</span>. This action cannot be undone.
             </p>
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-700 space-y-2">
               <div><strong>URL:</strong> {deleteDialog.site?.url}</div>
-              <div><strong>สถานะ:</strong> {deleteDialog.site?.status?.toUpperCase()}</div>
+              <div><strong>Status:</strong> {deleteDialog.site?.status?.toUpperCase()}</div>
               <div><strong>SupportPal:</strong> {deleteDialog.site?.versions?.supportpal || "-"}</div>
             </div>
             <label className="flex items-start gap-3 text-sm text-gray-700">
@@ -1193,7 +1193,7 @@ const SpDashboard = () => {
                 onChange={toggleDeleteConfirmation}
                 className="mt-1"
               />
-              <span>ฉันเข้าใจว่าการลบนี้จะลบข้อมูลทั้งหมดของเซิร์ฟเวอร์นี้ออกจากระบบ</span>
+              <span>I understand that deleting this server will remove all of its data from the system.</span>
             </label>
             {deleteDialog.error && (
               <div className="text-sm text-red-600">{deleteDialog.error}</div>
@@ -1204,7 +1204,7 @@ const SpDashboard = () => {
                 disabled={deleteDialog.isDeleting}
                 className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100"
               >
-                ยกเลิก
+                Cancel
               </button>
               <button
                 onClick={confirmDeleteSite}
@@ -1215,7 +1215,7 @@ const SpDashboard = () => {
                     : "bg-red-600 hover:bg-red-700"
                 }`}
               >
-                {deleteDialog.isDeleting ? "กำลังลบ..." : "ยืนยันการลบ"}
+                {deleteDialog.isDeleting ? "Deleting..." : "Confirm deletion"}
               </button>
             </div>
           </div>

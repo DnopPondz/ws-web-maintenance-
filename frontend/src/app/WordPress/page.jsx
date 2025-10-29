@@ -9,17 +9,17 @@ import {
   deleteWordpressSite,
 } from "../lib/api";
 
-let thaiDateFormatter;
+let englishDateFormatter;
 
-const getThaiDateFormatter = () => {
-  if (!thaiDateFormatter) {
-    thaiDateFormatter = new Intl.DateTimeFormat("th-TH", {
+const getEnglishDateFormatter = () => {
+  if (!englishDateFormatter) {
+    englishDateFormatter = new Intl.DateTimeFormat("en-US", {
       dateStyle: "medium",
       timeStyle: "short",
       timeZone: "Asia/Bangkok",
     });
   }
-  return thaiDateFormatter;
+  return englishDateFormatter;
 };
 
 const formatLastChecked = (value) => {
@@ -33,7 +33,7 @@ const formatLastChecked = (value) => {
       return value;
     }
 
-    return getThaiDateFormatter().format(date);
+    return getEnglishDateFormatter().format(date);
   } catch (error) {
     return value;
   }
@@ -208,9 +208,9 @@ const WpDashboard = () => {
       console.error('Failed to load WordPress sites:', err);
       const message = err?.message || '';
       const friendlyMessage = /collection|Mongo/i.test(message)
-        ? `${message} ตรวจสอบการตั้งค่า MongoDB หรือสร้าง collection ที่หายไป`
+        ? `${message} Please verify the MongoDB configuration or create the missing collection`
         : message;
-      setError(friendlyMessage || 'ไม่สามารถโหลดข้อมูลเว็บไซต์ได้');
+      setError(friendlyMessage || 'Unable to load website data');
       if (!initialSitesRef.current.length) {
         setSites([]);
       }
@@ -229,7 +229,7 @@ const WpDashboard = () => {
       if (!targetSite) {
         setSiteMutation(siteId, {
           status: 'error',
-          error: 'ไม่พบเว็บไซต์ที่ต้องการบันทึก',
+          error: 'The website to save could not be found',
           action,
         });
         return false;
@@ -240,7 +240,7 @@ const WpDashboard = () => {
       if (!updateId) {
         setSiteMutation(siteId, {
           status: 'error',
-          error: 'ไม่พบรหัสเว็บไซต์สำหรับอัปเดต',
+          error: 'The website ID for the update was not found',
           action,
         });
         return false;
@@ -272,7 +272,7 @@ const WpDashboard = () => {
         console.error('Failed to persist WordPress site:', err);
         setSiteMutation(siteId, {
           status: 'error',
-          error: err.message || 'ไม่สามารถบันทึกข้อมูลเว็บไซต์ได้',
+          error: err.message || 'Unable to save the website data',
           action,
         });
 
@@ -337,7 +337,7 @@ const WpDashboard = () => {
     }
 
     const siteId = deleteDialog.site.id;
-    const siteLabel = deleteDialog.site.name || 'เว็บไซต์';
+    const siteLabel = deleteDialog.site.name || 'Website';
 
     setDeleteDialog((prev) => ({
       ...prev,
@@ -364,7 +364,7 @@ const WpDashboard = () => {
 
       await loadSites({ showLoader: false });
 
-      showBanner(`ลบเว็บไซต์ ${siteLabel} เรียบร้อยแล้ว`, 'success');
+      showBanner(`Deleted website ${siteLabel} successfully`, 'success');
       closeDeleteDialog();
     } catch (err) {
       console.error('Failed to delete WordPress site:', err);
@@ -372,7 +372,7 @@ const WpDashboard = () => {
         ...prev,
         isDeleting: false,
         error:
-          err?.message || 'ไม่สามารถลบเว็บไซต์ได้ กรุณาลองใหม่อีกครั้ง',
+          err?.message || 'Unable to delete the website. Please try again.',
       }));
     }
   };
@@ -397,10 +397,10 @@ const WpDashboard = () => {
       }
 
       await loadSites({ showLoader: false });
-      showBanner('รีเซ็ตเว็บไซต์ที่ตรวจสอบแล้วสำหรับการบำรุงรักษารอบใหม่เรียบร้อยแล้ว', 'info');
+      showBanner('Reset confirmed websites for the new maintenance cycle successfully', 'info');
     } catch (error) {
       console.error('Failed to reset confirmed WordPress sites:', error);
-      showBanner(error?.message || 'ไม่สามารถรีเซ็ตสถานะเว็บไซต์ได้', 'error');
+      showBanner(error?.message || 'Unable to reset the website status', 'error');
     }
   }, [loadSites, persistSite, showBanner]);
 
@@ -462,24 +462,24 @@ const WpDashboard = () => {
 
     persistSite(siteId, { isConfirmed: true, lastChecked: confirmationTime }, { showLoader: false, action: 'confirm' })
       .then(() => {
-        showBanner('ยืนยันการอัปเดตเรียบร้อยแล้ว!', 'success');
+        showBanner('Update confirmed successfully!', 'success');
         setCurrentPage('confirmed');
       })
       .catch((err) => {
-        showBanner(err.message || 'ไม่สามารถยืนยันการอัปเดตได้', 'error');
+        showBanner(err.message || 'Unable to confirm the update', 'error');
       });
   };
 
   const handleSaveMaintenanceNotes = (siteId) => {
-    const siteName = sitesRef.current.find((item) => item.id === siteId)?.name || 'เว็บไซต์';
+    const siteName = sitesRef.current.find((item) => item.id === siteId)?.name || 'Website';
 
     persistSite(siteId, {}, { showLoader: false, action: 'notes' })
       .then(() => {
-        showBanner(`บันทึกหมายเหตุของ ${siteName} เรียบร้อยแล้ว`, 'success');
+        showBanner(`Saved notes for ${siteName} successfully`, 'success');
       })
       .catch((err) => {
         showBanner(
-          err.message || `ไม่สามารถบันทึกหมายเหตุของ ${siteName} ได้`,
+          err.message || `Unable to save notes for ${siteName}`,
           'error'
         );
       });
@@ -573,14 +573,14 @@ const WpDashboard = () => {
   // ปรับปรุงการ validation ในฟังก์ชัน saveChanges
   const saveChanges = async () => {
     if (!formData.name || !formData.url) {
-      setFormStatus({ type: 'error', message: 'กรุณากรอกชื่อเว็บไซต์และ URL' });
+      setFormStatus({ type: 'error', message: 'Please enter the website name and URL' });
       return;
     }
 
     try {
       new URL(formData.url);
     } catch {
-      setFormStatus({ type: 'error', message: 'กรุณากรอก URL ที่ถูกต้อง (เช่น https://example.com)' });
+      setFormStatus({ type: 'error', message: 'Please provide a valid URL (e.g. https://example.com)' });
       return;
     }
 
@@ -608,7 +608,7 @@ const WpDashboard = () => {
       isConfirmed: Boolean(formData.isConfirmed),
     };
 
-    const siteLabel = formData.name || editingSite?.name || 'เว็บไซต์';
+    const siteLabel = formData.name || editingSite?.name || 'Website';
 
     setFormStatus({ type: null, message: '' });
     setIsSavingChanges(true);
@@ -622,7 +622,7 @@ const WpDashboard = () => {
 
         await createWordpressSite(payload);
         await loadSites({ showLoader: false });
-        showBanner(`เพิ่มเว็บไซต์ ${siteLabel} เรียบร้อยแล้ว`, 'success');
+        showBanner(`Added website ${siteLabel} successfully`, 'success');
         goBackToDashboard();
       } else if (editingSite) {
         const payload = {
@@ -632,18 +632,18 @@ const WpDashboard = () => {
 
         await updateWordpressSite(editingSite.id, payload);
         await loadSites({ showLoader: false });
-        showBanner(`บันทึกการแก้ไข ${siteLabel} เรียบร้อยแล้ว`, 'success');
+        showBanner(`Saved changes for ${siteLabel} successfully`, 'success');
         goBackToDashboard();
       }
     } catch (err) {
       console.error('Failed to save WordPress site:', err);
       const message = err?.message || '';
       const friendlyMessage = /collection|Mongo/i.test(message)
-        ? `${message} ตรวจสอบการตั้งค่า MongoDB หรือสิทธิ์การเข้าถึง collection`
+        ? `${message} Please verify the MongoDB configuration or the collection permissions`
         : message;
       setFormStatus({
         type: 'error',
-        message: friendlyMessage || 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
+        message: friendlyMessage || 'Unable to save the data. Please try again.',
       });
     } finally {
       setIsSavingChanges(false);
@@ -674,13 +674,13 @@ const WpDashboard = () => {
     return (
       <div className="p-4 max-w-3xl mx-auto space-y-4">
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-6 text-center">
-          <h1 className="text-xl font-semibold mb-2">เกิดข้อผิดพลาดในการดึงข้อมูล</h1>
+          <h1 className="text-xl font-semibold mb-2">An error occurred while fetching data</h1>
           <p className="text-sm mb-4">{error}</p>
           <button
             onClick={loadSites}
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
           >
-            ลองอีกครั้ง
+            Try again
           </button>
         </div>
       </div>
@@ -691,7 +691,7 @@ const WpDashboard = () => {
     return (
       <div className="p-4 max-w-6xl mx-auto">
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 text-center text-gray-600">
-          กำลังโหลดข้อมูลเว็บไซต์ WordPress...
+          Loading WordPress website data...
         </div>
       </div>
     );
@@ -714,9 +714,9 @@ const WpDashboard = () => {
   // Add/Edit Page Component
   if ((currentPage === 'edit' && editingSite) || currentPage === 'add') {
     const isEditing = currentPage === 'edit';
-    const pageTitle = isEditing ? 'แก้ไขข้อมูลเว็บไซต์' : 'เพิ่มเว็บไซต์ใหม่';
+    const pageTitle = isEditing ? 'Edit website details' : 'Add new website';
     const pageIcon = isEditing ? '✏️' : '➕';
-    const saveButtonText = isEditing ? '💾 บันทึกการแก้ไข' : '➕ เพิ่มเว็บไซต์';
+    const saveButtonText = isEditing ? '💾 Save changes' : '➕ Add website';
     
     return (
       <div className="p-4 max-w-4xl mx-auto">
@@ -731,7 +731,7 @@ const WpDashboard = () => {
                 onClick={goBackToDashboard}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium transition-colors"
               >
-                ← กลับไปหน้าหลัก
+                ← Back to dashboard
               </button>
             </div>
           </div>
@@ -752,7 +752,7 @@ const WpDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  ชื่อเว็บไซต์ *
+                  Website name *
                 </label>
                 <input
                   type="text"
@@ -803,27 +803,27 @@ const WpDashboard = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                สถานะ
-              </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Status
+                </label>
               <select
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 value={formData.status || ''}
                 onChange={(e) => handleFormChange('status', e.target.value)}
               >
-                <option value="healthy">Healthy (ปกติ)</option>
-                <option value="warning">Warning (เตือน)</option>
-                <option value="error">Error (ข้อผิดพลาด)</option>
+                <option value="healthy">Healthy (Normal)</option>
+                <option value="warning">Warning (Alert)</option>
+                <option value="error">Error (Issue)</option>
               </select>
             </div>
 
             {/* Theme Information */}
             <div className="border-t pt-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">🎨 ธีม</h3>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">🎨 Theme</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    ชื่อธีม
+                    Theme name
                   </label>
                   <input
                     type="text"
@@ -834,7 +834,7 @@ const WpDashboard = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    เวอร์ชัน
+                    Version
                   </label>
                   <input
                     type="text"
@@ -849,12 +849,12 @@ const WpDashboard = () => {
             {/* Plugins */}
             <div className="border-t pt-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">🔌 ปลั๊กอิน</h3>
+                <h3 className="text-lg font-semibold text-gray-800">🔌 Plugins</h3>
                 <button
                   onClick={addPlugin}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors"
                 >
-                  + เพิ่มปลั๊กอิน
+                  + Add plugin
                 </button>
               </div>
               
@@ -864,7 +864,7 @@ const WpDashboard = () => {
                     <div className="flex-1">
                       <input
                         type="text"
-                        placeholder="ชื่อปลั๊กอิน"
+                        placeholder="Plugin name"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         value={plugin.name}
                         onChange={(e) => handlePluginChange(index, 'name', e.target.value)}
@@ -873,7 +873,7 @@ const WpDashboard = () => {
                     <div className="w-32">
                       <input
                         type="text"
-                        placeholder="เวอร์ชัน"
+                        placeholder="Version"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         value={plugin.version}
                         onChange={(e) => handlePluginChange(index, 'version', e.target.value)}
@@ -883,7 +883,7 @@ const WpDashboard = () => {
                       onClick={() => removePlugin(index)}
                       className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm transition-colors"
                     >
-                      ลบ
+                      Delete
                     </button>
                   </div>
                 ))}
@@ -893,12 +893,12 @@ const WpDashboard = () => {
             {/* Maintenance Notes */}
             <div className="border-t pt-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                📝 รายละเอียดการบำรุงรักษา
+                📝 Maintenance details
               </label>
               <textarea
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                 rows={4}
-                placeholder="เพิ่มรายละเอียด เช่น อัปเดตปลั๊กอิน ลบไฟล์เก่า ปรับปรุงความเร็ว ฯลฯ"
+                placeholder="Add details such as updating plugins, removing old files, improving performance, etc."
                 value={formData.maintenanceNotes || ''}
                 onChange={(e) => handleFormChange('maintenanceNotes', e.target.value)}
               />
@@ -912,14 +912,14 @@ const WpDashboard = () => {
                 disabled={isSavingChanges}
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {isSavingChanges ? 'กำลังบันทึก...' : saveButtonText}
+                {isSavingChanges ? 'Saving...' : saveButtonText}
               </button>
               <button
                 type="button"
                 onClick={goBackToDashboard}
                 className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium transition-colors"
               >
-                ยกเลิก
+                Cancel
               </button>
             </div>
           </div>
@@ -929,7 +929,7 @@ const WpDashboard = () => {
   }
 
   const currentPageSites = getCurrentPageSites();
-  const pageTitle = currentPage === 'confirmed' ? 'เว็บไซต์ที่ตรวจสอบแล้ว' : 'WordPress Maintenance Dashboard';
+  const pageTitle = currentPage === 'confirmed' ? 'Confirmed websites' : 'WordPress Maintenance Dashboard';
   const pageIcon = currentPage === 'confirmed' ? '✅' : '🚀';
 
   // Dashboard and Confirmed Pages
@@ -955,26 +955,26 @@ const WpDashboard = () => {
             onClick={dismissBanner}
             className="text-xs font-medium underline hover:opacity-80"
           >
-            ปิด
+            Close
           </button>
         </div>
       )}
 
       {hasFetchedInitialSites && isLoading && (
         <div className="bg-blue-50 border border-blue-200 text-blue-700 rounded-lg p-3 text-center text-sm">
-          กำลังรีเฟรชข้อมูลล่าสุด...
+          Refreshing the latest data...
         </div>
       )}
 
       {hasFetchedInitialSites && error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4">
-          <div className="font-semibold mb-1">ไม่สามารถรีเฟรชข้อมูลล่าสุดได้</div>
+          <div className="font-semibold mb-1">Unable to refresh the latest data</div>
           <p className="text-sm mb-3">{error}</p>
           <button
             onClick={loadSites}
             className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
           >
-            ลองอีกครั้ง
+            Try again
           </button>
         </div>
       )}
@@ -990,7 +990,7 @@ const WpDashboard = () => {
                 : 'text-gray-600 hover:text-gray-800'
             }`}
           >
-            🏠 หน้าหลัก ({sites.filter(s => !s.isConfirmed).length})
+            🏠 Dashboard ({sites.filter(s => !s.isConfirmed).length})
           </button>
           <button
             onClick={goToConfirmedPage}
@@ -1000,7 +1000,7 @@ const WpDashboard = () => {
                 : 'text-gray-600 hover:text-gray-800'
             }`}
           >
-            ✅ ตรวจสอบแล้ว ({sites.filter(s => s.isConfirmed).length})
+            ✅ Confirmed ({sites.filter(s => s.isConfirmed).length})
           </button>
         </div>
       </div>
@@ -1011,7 +1011,7 @@ const WpDashboard = () => {
           <div className="relative">
             <input
               type="text"
-              placeholder="ค้นหาเว็บไซต์... (ชื่อ หรือ URL)"
+              placeholder="Search websites... (name or URL)"
               className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -1033,17 +1033,17 @@ const WpDashboard = () => {
                 : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
             }`}
           >
-            🔄 รีเฟรชข้อมูล
+            🔄 Refresh data
           </button>
           <div className="text-sm text-gray-600">
-            {currentPageSites.length} เว็บไซต์ | คลิกเพื่อดูรายละเอียด
+            {currentPageSites.length} websites | Click to view details
           </div>
           {currentPage === 'dashboard' && (
             <button
               onClick={goToAddPage}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors flex items-center gap-2"
             >
-              ➕ เพิ่มเว็บไซต์ใหม่
+              ➕ Add new website
             </button>
           )}
         </div>
@@ -1057,18 +1057,18 @@ const WpDashboard = () => {
           </div>
           <div className="text-xl font-medium text-gray-600 mb-2">
             {searchTerm 
-              ? 'ไม่พบเว็บไซต์ที่ค้นหา' 
+              ? 'No websites match your search' 
               : currentPage === 'confirmed' 
-                ? 'ยังไม่มีเว็บไซต์ที่ตรวจสอบแล้ว' 
-                : 'ยังไม่มีเว็บไซต์ในระบบ'
+                ? 'No confirmed websites yet' 
+                : 'No websites in the system yet'
             }
           </div>
           <div className="text-gray-500">
             {searchTerm 
-              ? 'ลองใช้คำค้นหาอื่น หรือตรวจสอบการสะกด' 
+              ? 'Try a different search term or check the spelling' 
               : currentPage === 'confirmed' 
-                ? 'เมื่อยืนยันการอัปเดตเว็บไซต์แล้ว จะแสดงที่นี่' 
-                : 'เริ่มต้นด้วยการเพิ่มเว็บไซต์แรก'
+                ? 'Confirmed website updates will appear here' 
+                : 'Start by adding the first website'
             }
           </div>
         </div>
@@ -1116,7 +1116,7 @@ const WpDashboard = () => {
                       </div>
                       {site.isConfirmed && (
                         <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full border border-green-200">
-                          ✅ ตรวจสอบแล้ว
+                          ✅ Confirmed
                         </span>
                       )}
                     </div>
@@ -1162,7 +1162,7 @@ const WpDashboard = () => {
                       disabled={isConfirmSaving}
                       className="px-4 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      {isConfirmSaving ? 'กำลังยืนยัน...' : '✅ ยืนยันการอัปเดต'}
+                      {isConfirmSaving ? 'Confirming...' : '✅ Confirm update'}
                     </button>
                   )}
                   <button
@@ -1173,7 +1173,7 @@ const WpDashboard = () => {
                     }}
                     className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors"
                   >
-                    ✏️ แก้ไข
+                    ✏️ Edit
                   </button>
                   <button
                     type="button"
@@ -1184,7 +1184,7 @@ const WpDashboard = () => {
                     disabled={deleteDialog.isDeleting && deleteDialog.site?.id === site.id}
                     className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    🗑️ ลบเว็บไซต์
+                    🗑️ Delete website
                   </button>
                 </div>
 
@@ -1219,7 +1219,7 @@ const WpDashboard = () => {
                     >
                       <div className="font-medium text-gray-800">🔌 Plugins</div>
                       <div className="text-sm text-gray-600">
-                        {site.plugins.length} ปลั๊กอิน
+                        {site.plugins.length} plugins
                       </div>
                     </button>
                     {openDropdowns[`${site.id}-plugins`] && (
@@ -1240,12 +1240,12 @@ const WpDashboard = () => {
                 {/* Maintenance Notes */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    📝 รายละเอียดการบำรุงรักษา
+                    📝 Maintenance details
                   </label>
                   <textarea
                     className="w-full rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-800 focus:bg-white focus:border-blue-500 focus:outline-none transition-all resize-none"
                     rows={3}
-                    placeholder="เพิ่มรายละเอียด เช่น อัปเดตปลั๊กอิน ลบไฟล์เก่า ปรับปรุงความเร็ว ฯลฯ"
+                    placeholder="Add details such as updating plugins, removing old files, improving performance, etc."
                     value={site.maintenanceNotes}
                     onChange={(e) => updateMaintenanceNotes(site.id, e.target.value)}
                   />
@@ -1256,16 +1256,16 @@ const WpDashboard = () => {
                       disabled={isNotesSaving}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      {isNotesSaving ? 'กำลังบันทึก...' : '💾 บันทึกหมายเหตุ'}
+                      {isNotesSaving ? 'Saving...' : '💾 Save notes'}
                     </button>
                     {hasUnsavedChanges && (
-                      <span className="text-xs text-amber-600">มีการแก้ไขที่ยังไม่บันทึก</span>
+                      <span className="text-xs text-amber-600">There are unsaved changes</span>
                     )}
                     {saveError && (
                       <span className="text-xs text-red-600">{saveError}</span>
                     )}
                     {!hasUnsavedChanges && !saveError && lastSavedLabel && (
-                      <span className="text-xs text-green-600">บันทึกล่าสุด {lastSavedLabel}</span>
+                      <span className="text-xs text-green-600">Last saved {lastSavedLabel}</span>
                     )}
                   </div>
                 </div>
@@ -1294,9 +1294,9 @@ const WpDashboard = () => {
             <div className="px-6 py-5 bg-red-50 border-b border-red-100 flex items-start gap-3">
               <div className="text-3xl">🗑️</div>
               <div>
-                <h2 className="text-xl font-semibold text-red-700 mb-1">ยืนยันการลบเว็บไซต์</h2>
+                <h2 className="text-xl font-semibold text-red-700 mb-1">Confirm website deletion</h2>
                 <p className="text-sm text-red-600">
-                  การลบเว็บไซต์ <span className="font-semibold">{deleteDialog.site?.name}</span> จะไม่สามารถกู้คืนได้
+                  Deleting the website <span className="font-semibold">{deleteDialog.site?.name}</span> cannot be undone
                 </p>
               </div>
               <button
@@ -1304,7 +1304,7 @@ const WpDashboard = () => {
                 onClick={closeDeleteDialog}
                 disabled={deleteDialog.isDeleting}
                 className="ml-auto text-red-500 hover:text-red-700 disabled:opacity-50"
-                aria-label="ปิดหน้าต่างยืนยันการลบ"
+                aria-label="Close delete confirmation dialog"
               >
                 ✕
               </button>
@@ -1322,7 +1322,7 @@ const WpDashboard = () => {
                   disabled={deleteDialog.isDeleting}
                 />
                 <span>
-                  ฉันเข้าใจและยืนยันที่จะลบเว็บไซต์นี้ออกจากระบบถาวร
+                  I understand and confirm that this website will be removed permanently from the system
                 </span>
               </label>
               {deleteDialog.error && (
@@ -1338,7 +1338,7 @@ const WpDashboard = () => {
                 disabled={deleteDialog.isDeleting}
                 className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-800 disabled:opacity-60"
               >
-                ยกเลิก
+                Cancel
               </button>
               <button
                 type="button"
@@ -1346,7 +1346,7 @@ const WpDashboard = () => {
                 disabled={!deleteDialog.isChecked || deleteDialog.isDeleting}
                 className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {deleteDialog.isDeleting ? 'กำลังลบ...' : 'ยืนยันการลบ'}
+                {deleteDialog.isDeleting ? 'Deleting...' : 'Confirm deletion'}
               </button>
             </div>
           </div>
