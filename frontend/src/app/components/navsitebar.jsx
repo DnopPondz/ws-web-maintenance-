@@ -1,12 +1,14 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from 'react';
-import { logoutUser } from '../lib/api.js';
+import { useEffect, useState, useCallback } from 'react';
+import { logoutUser } from '../lib/api';
 import { useRouter } from 'next/navigation';
 
 export default function NavSidebar({ isOpen, setIsOpen }) {
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [user, setUser] = useState(null);
+  const [logoutError, setLogoutError] = useState(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -16,20 +18,36 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
     }
   }, []);
 
+  const clearSessionAndRedirect = useCallback(() => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    router.push('/login');
+  }, [router]);
+
   const handleLogout = async () => {
+    setLogoutError(null);
+
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (!refreshToken) {
+      clearSessionAndRedirect();
+      return;
+    }
+
+    setIsLoggingOut(true);
     try {
-      const refreshToken = localStorage.getItem('refreshToken');
-      await logoutUser(refreshToken); // เรียก API logout
-
-      // เคลียร์ localStorage
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
-
-      router.push('/login'); // กลับไปหน้าล็อกอิน
+      await logoutUser(refreshToken);
+      clearSessionAndRedirect();
     } catch (err) {
       console.error('Logout failed:', err);
+      setLogoutError(err.message || 'ไม่สามารถออกจากระบบได้ กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      setIsLoggingOut(false);
     }
+  };
+
+  const handleForceLogout = () => {
+    clearSessionAndRedirect();
   };
 
   return (
@@ -176,8 +194,27 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
         </nav>
 
         {/* Footer */}
-        <div className="p-4 text-center border-t border-gray-700">
-          <button onClick={handleLogout} className="text-red-300  hover:text-red-200 w-full h-full cursor-pointer" > Logout</button>
+        <div className="p-4 text-center border-t border-gray-700 space-y-2">
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="w-full py-2 rounded-md text-sm font-medium text-red-200 hover:text-red-100 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isLoggingOut ? 'กำลังออกจากระบบ...' : 'Logout'}
+          </button>
+          {logoutError && (
+            <div className="text-xs text-red-100 bg-red-500/20 rounded-md px-3 py-2 space-y-1" aria-live="polite">
+              <p>{logoutError}</p>
+              <button
+                type="button"
+                onClick={handleForceLogout}
+                className="underline text-red-100 hover:text-red-50"
+              >
+                บังคับออกจากระบบ
+              </button>
+            </div>
+          )}
         </div>
       </aside>
     </>

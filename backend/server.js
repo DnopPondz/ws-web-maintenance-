@@ -1,21 +1,45 @@
-// backend/index.js
 import express from 'express';
-import authRoutes from './routes/auth.js';
-import authWp from './routes/authwp.js'
 import cors from 'cors';
+import dotenv from 'dotenv';
+
+import authRoutes from './routes/auth.js';
+import authWp from './routes/authwp.js';
+import authSupportpal from './routes/authsupportpal.js';
+import connectMongo from './database/mongo.js';
+
+dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
+const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
 
-app.use(cors({
-  origin: 'http://localhost:3000', // ✅ Frontend origin
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: frontendOrigin,
+    credentials: true,
+  })
+);
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use('/api', authRoutes);
 app.use('/api/wp', authWp);
+app.use('/api/sp', authSupportpal);
 
-app.listen(port, () => {
-  console.log(`🚀 Server running at http://localhost:${port}`);
-});
+async function start() {
+  try {
+    await connectMongo();
+    app.listen(port, () => {
+      console.log(`🚀 Server running at http://localhost:${port}`);
+    });
+  } catch (error) {
+    if (error?.code === 'MONGOOSE_NOT_INSTALLED') {
+      console.error(error.message);
+    } else {
+      console.error('Failed to start server:', error);
+    }
+    process.exit(1);
+  }
+}
+
+start();

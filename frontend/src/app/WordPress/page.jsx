@@ -1,8 +1,151 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
+import { useState, useEffect, useCallback, useRef } from "react";
 
+import {
+  fetchWordpressSites,
+  createWordpressSite,
+  updateWordpressSite,
+  deleteWordpressSite,
+} from "../lib/api";
+
+let thaiDateFormatter;
+
+const getThaiDateFormatter = () => {
+  if (!thaiDateFormatter) {
+    thaiDateFormatter = new Intl.DateTimeFormat("th-TH", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "Asia/Bangkok",
+    });
+  }
+  return thaiDateFormatter;
+};
+
+const formatLastChecked = (value) => {
+  if (!value) {
+    return "-";
+  }
+
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+
+    return getThaiDateFormatter().format(date);
+  } catch (error) {
+    return value;
+  }
+};
+
+const parseJsonField = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  if (Array.isArray(value) || typeof value === "object") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  return null;
+};
+
+const cloneSites = (sites = []) =>
+  sites.map((site) => ({
+    ...site,
+    id: site?.id != null ? String(site.id) : site?.id,
+    theme: site.theme ? { ...site.theme } : { name: "", version: "" },
+    plugins: Array.isArray(site.plugins)
+      ? site.plugins.map((plugin) => ({ ...plugin }))
+      : [],
+  }));
+
+const deriveSiteId = (site, index) => {
+  const candidates = [site?.id, site?._id, site?.uuid];
+
+  for (const candidate of candidates) {
+    if (candidate !== undefined && candidate !== null && candidate !== '') {
+      return String(candidate);
+    }
+  }
+
+  return String(index + 1);
+};
+
+const normaliseSites = (rawSites = []) =>
+  rawSites.map((site, index) => {
+    const parsedTheme = parseJsonField(site?.theme);
+    const theme =
+      parsedTheme && !Array.isArray(parsedTheme)
+        ? {
+            name: parsedTheme?.name || "N/A",
+            version: parsedTheme?.version || "N/A",
+          }
+        : {
+            name: site?.theme?.name || "N/A",
+            version: site?.theme?.version || "N/A",
+          };
+
+    const parsedPlugins = parseJsonField(site?.plugins);
+    const pluginsSource = Array.isArray(parsedPlugins)
+      ? parsedPlugins
+      : Array.isArray(site?.plugins)
+        ? site.plugins
+        : [];
+
+    const formattedPlugins = pluginsSource.map((plugin, pluginIndex) => ({
+      name: plugin?.name || `Plugin ${pluginIndex + 1}`,
+      version: plugin?.version || "N/A",
+    }));
+
+    const lastChecked = site?.lastChecked || site?.last_checked || null;
+    const maintenanceNotes =
+      site?.maintenanceNotes ?? site?.maintenance_notes ?? "";
+
+    const isConfirmedRaw =
+      site?.isConfirmed ?? site?.is_confirmed ?? false;
+
+    return {
+      id: deriveSiteId(site, index),
+      _id: site?._id ? String(site._id) : undefined,
+      name: site?.name || "Unnamed Site",
+      url: site?.url || "",
+      logo: site?.logo || "https://via.placeholder.com/50",
+      wordpressVersion:
+        site?.wordpressVersion || site?.wordpress_version || "N/A",
+      status: site?.status || "healthy",
+      maintenanceNotes,
+      theme,
+      plugins: formattedPlugins,
+      isConfirmed:
+        typeof isConfirmedRaw === "string"
+          ? isConfirmedRaw === "true" || isConfirmedRaw === "t"
+          : Boolean(isConfirmedRaw),
+      lastChecked,
+    };
+  });
+
+const cloneSite = (site) => {
+  if (!site) {
+    return null;
+  }
+
+  return cloneSites([site])[0];
+};
+
+// NOTE: ปรับค่า WEEKLY_RESET_* เพื่อเปลี่ยนเวลาการรีเซ็ตสถานะเว็บไซต์ที่ยืนยันแล้ว
+const WEEKLY_RESET_DAY = 1; // วันจันทร์ (0 = อาทิตย์, 1 = จันทร์, ...)
+const WEEKLY_RESET_HOUR = 0; // ชั่วโมงที่ต้องการให้รีเซ็ต (24 ชั่วโมง)
+const WEEKLY_RESET_MINUTE = 0; // นาทีที่ต้องการให้รีเซ็ต
 
 const WpDashboard = () => {
   const [sites, setSites] = useState([]);
@@ -12,12 +155,144 @@ const WpDashboard = () => {
   const [editingSite, setEditingSite] = useState(null);
   const [formData, setFormData] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [hasFetchedInitialSites, setHasFetchedInitialSites] = useState(false);
+  const initialSitesRef = useRef([]);
+  const sitesRef = useRef([]);
+  const [siteMutations, setSiteMutations] = useState({});
+  const [banner, setBanner] = useState(null);
+  const [isSavingChanges, setIsSavingChanges] = useState(false);
+  const [formStatus, setFormStatus] = useState({ type: null, message: "" });
+  const [deleteDialog, setDeleteDialog] = useState({
+    isOpen: false,
+    site: null,
+    isChecked: false,
+    isDeleting: false,
+    error: null,
+  });
+  const lastWeeklyResetKeyRef = useRef(null);
 
-useEffect(() => {
-    axios.get('http://localhost:5000/api/wp/site')
-      .then(res => setSites(res.data.data))
-      .catch(err => console.error(err));
+  const setSiteMutation = useCallback((siteId, patch) => {
+    setSiteMutations((prev) => ({
+      ...prev,
+      [siteId]: {
+        ...(prev[siteId] || {}),
+        ...patch,
+      },
+    }));
   }, []);
+
+  const showBanner = useCallback((message, type = 'info') => {
+    setBanner({ message, type });
+  }, []);
+
+  const dismissBanner = useCallback(() => setBanner(null), []);
+
+  const loadSites = useCallback(async ({ showLoader = true } = {}) => {
+    const manageLoadingState = showLoader !== false;
+
+    if (manageLoadingState) {
+      setIsLoading(true);
+    }
+
+    setError(null);
+    try {
+      const apiSites = await fetchWordpressSites();
+      const normalisedSites = normaliseSites(apiSites);
+      initialSitesRef.current = cloneSites(normalisedSites);
+      sitesRef.current = normalisedSites;
+      setSites(normalisedSites);
+      setHasFetchedInitialSites(true);
+    } catch (err) {
+      console.error('Failed to load WordPress sites:', err);
+      const message = err?.message || '';
+      const friendlyMessage = /collection|Mongo/i.test(message)
+        ? `${message} ตรวจสอบการตั้งค่า MongoDB หรือสร้าง collection ที่หายไป`
+        : message;
+      setError(friendlyMessage || 'ไม่สามารถโหลดข้อมูลเว็บไซต์ได้');
+      if (!initialSitesRef.current.length) {
+        setSites([]);
+      }
+    } finally {
+      if (manageLoadingState) {
+        setIsLoading(false);
+      }
+    }
+  }, []);
+
+  const persistSite = useCallback(
+    async (siteId, overrides = {}, options = {}) => {
+      const { showLoader = false, skipReload = false, action = 'update' } = options;
+      const targetSite = sitesRef.current.find((item) => item.id === siteId);
+
+      if (!targetSite) {
+        setSiteMutation(siteId, {
+          status: 'error',
+          error: 'ไม่พบเว็บไซต์ที่ต้องการบันทึก',
+          action,
+        });
+        return false;
+      }
+
+      const updateId = targetSite._id || siteId;
+
+      if (!updateId) {
+        setSiteMutation(siteId, {
+          status: 'error',
+          error: 'ไม่พบรหัสเว็บไซต์สำหรับอัปเดต',
+          action,
+        });
+        return false;
+      }
+
+      setSiteMutation(siteId, { status: 'saving', error: null, action });
+
+      const payload = {
+        ...targetSite,
+        ...overrides,
+      };
+
+      try {
+        await updateWordpressSite(updateId, payload);
+
+        if (!skipReload) {
+          await loadSites({ showLoader });
+        }
+
+        setSiteMutation(siteId, {
+          status: 'success',
+          error: null,
+          timestamp: Date.now(),
+          action,
+        });
+
+        return true;
+      } catch (err) {
+        console.error('Failed to persist WordPress site:', err);
+        setSiteMutation(siteId, {
+          status: 'error',
+          error: err.message || 'ไม่สามารถบันทึกข้อมูลเว็บไซต์ได้',
+          action,
+        });
+
+        if (!skipReload) {
+          await loadSites({ showLoader });
+        }
+
+        throw err;
+      }
+    },
+    [loadSites, setSiteMutation]
+  );
+
+  useEffect(() => {
+    loadSites();
+  }, [loadSites]);
+
+  useEffect(() => {
+    sitesRef.current = sites;
+  }, [sites]);
 
 
   const toggleSiteExpansion = (id) => {
@@ -27,40 +302,140 @@ useEffect(() => {
     }));
   };
 
+
+  const openDeleteDialog = (site) => {
+    setDeleteDialog({
+      isOpen: true,
+      site: cloneSite(site),
+      isChecked: false,
+      isDeleting: false,
+      error: null,
+    });
+  };
+
+  const closeDeleteDialog = () => {
+    setDeleteDialog({
+      isOpen: false,
+      site: null,
+      isChecked: false,
+      isDeleting: false,
+      error: null,
+    });
+  };
+
+  const toggleDeleteConfirmation = () => {
+    setDeleteDialog((prev) => ({
+      ...prev,
+      isChecked: !prev.isChecked,
+      error: null,
+    }));
+  };
+
+  const confirmDeleteSite = async () => {
+    if (!deleteDialog.site?.id) {
+      return;
+    }
+
+    const siteId = deleteDialog.site.id;
+    const siteLabel = deleteDialog.site.name || 'เว็บไซต์';
+
+    setDeleteDialog((prev) => ({
+      ...prev,
+      isDeleting: true,
+      error: null,
+    }));
+
+    try {
+      await deleteWordpressSite(siteId);
+
+      setExpandedSites((prev) => {
+        const next = { ...prev };
+        delete next[siteId];
+        return next;
+      });
+
+      setSiteMutations((prev) => {
+        if (!prev || !prev[siteId]) {
+          return prev;
+        }
+        const { [siteId]: _removed, ...rest } = prev;
+        return rest;
+      });
+
+      await loadSites({ showLoader: false });
+
+      showBanner(`ลบเว็บไซต์ ${siteLabel} เรียบร้อยแล้ว`, 'success');
+      closeDeleteDialog();
+    } catch (err) {
+      console.error('Failed to delete WordPress site:', err);
+      setDeleteDialog((prev) => ({
+        ...prev,
+        isDeleting: false,
+        error:
+          err?.message || 'ไม่สามารถลบเว็บไซต์ได้ กรุณาลองใหม่อีกครั้ง',
+      }));
+    }
+  };
+
   
 
-  // ปรับปรุงการใช้ useCallback เพื่อป้องกัน unnecessary re-renders
-  const resetToMainPage = useCallback(() => {
-    // ใช้ deep copy เพื่อหลีกเลี่ยงปัญหา reference
-    setSites(JSON.parse(JSON.stringify(initialSites)));
-    setExpandedSites({});
-    setOpenDropdowns({});
-    setCurrentPage('dashboard');
-    setEditingSite(null);
-    setFormData({});
-    setSearchTerm('');
-    console.log('System reset completed - back to main page');
-  }, []);
+  const resetConfirmedSitesForNewWeek = useCallback(async () => {
+    const confirmedSites = sitesRef.current.filter((site) => site.isConfirmed);
+
+    if (!confirmedSites.length) {
+      return;
+    }
+
+    try {
+      for (const site of confirmedSites) {
+        // ใช้ skipReload เพื่อให้โหลดข้อมูลใหม่เพียงครั้งเดียวหลังอัปเดตทั้งหมด
+        await persistSite(
+          site.id,
+          { isConfirmed: false },
+          { showLoader: false, skipReload: true, action: 'auto-reset' }
+        );
+      }
+
+      await loadSites({ showLoader: false });
+      showBanner('รีเซ็ตเว็บไซต์ที่ตรวจสอบแล้วสำหรับการบำรุงรักษารอบใหม่เรียบร้อยแล้ว', 'info');
+    } catch (error) {
+      console.error('Failed to reset confirmed WordPress sites:', error);
+      showBanner(error?.message || 'ไม่สามารถรีเซ็ตสถานะเว็บไซต์ได้', 'error');
+    }
+  }, [loadSites, persistSite, showBanner]);
 
   useEffect(() => {
+    if (!hasFetchedInitialSites) {
+      return;
+    }
+
     const checkAndReset = () => {
       const now = new Date();
-      const dayOfWeek = now.getDay(); // 0 = อาทิตย์, 1 = จันทร์
+      const dayOfWeek = now.getDay();
       const hours = now.getHours();
       const minutes = now.getMinutes();
-      
-      // ตรวจสอบว่าเป็นวันจันทร์เที่ยงคืน (00:00)
-      if (dayOfWeek === 1 && hours === 0 && minutes === 0) {
-        resetToMainPage();
+
+      if (
+        dayOfWeek === WEEKLY_RESET_DAY &&
+        hours === WEEKLY_RESET_HOUR &&
+        minutes === WEEKLY_RESET_MINUTE
+      ) {
+        const resetKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+
+        if (lastWeeklyResetKeyRef.current !== resetKey) {
+          lastWeeklyResetKeyRef.current = resetKey;
+          resetConfirmedSitesForNewWeek();
+        }
+      } else {
+        lastWeeklyResetKeyRef.current = null;
       }
     };
 
-    // ตั้งเวลาตรวจสอบทุกนาที
     const interval = setInterval(checkAndReset, 60000);
-    
-    // ทำความสะอาดเมื่อ component unmount
+    checkAndReset();
+
     return () => clearInterval(interval);
-  }, [resetToMainPage]); // เพิ่ม dependency array
+  }, [hasFetchedInitialSites, resetConfirmedSitesForNewWeek]);
 
   const toggleDropdown = (id, type) => {
     setOpenDropdowns((prev) => ({
@@ -70,20 +445,42 @@ useEffect(() => {
   };
 
   const updateMaintenanceNotes = (id, notes) => {
-    setSites(prev =>
-      prev.map(site =>
+    setSites((prev) => {
+      const updatedSites = prev.map((site) =>
         site.id === id ? { ...site, maintenanceNotes: notes } : site
-      )
-    );
+      );
+      sitesRef.current = updatedSites;
+      return updatedSites;
+    });
+    setSiteMutation(id, { status: 'dirty', error: null, action: 'notes' });
   };
 
   const confirmUpdate = (siteId) => {
-    setSites(prev =>
-      prev.map(site =>
-        site.id === siteId ? { ...site, isConfirmed: true, lastChecked: new Date().toLocaleString('th-TH') } : site
-      )
-    );
-    alert('ยืนยันการอัปเดตเรียบร้อยแล้ว!');
+    const confirmationTime = new Date().toISOString();
+
+    persistSite(siteId, { isConfirmed: true, lastChecked: confirmationTime }, { showLoader: false, action: 'confirm' })
+      .then(() => {
+        showBanner('ยืนยันการอัปเดตเรียบร้อยแล้ว!', 'success');
+        setCurrentPage('confirmed');
+      })
+      .catch((err) => {
+        showBanner(err.message || 'ไม่สามารถยืนยันการอัปเดตได้', 'error');
+      });
+  };
+
+  const handleSaveMaintenanceNotes = (siteId) => {
+    const siteName = sitesRef.current.find((item) => item.id === siteId)?.name || 'เว็บไซต์';
+
+    persistSite(siteId, {}, { showLoader: false, action: 'notes' })
+      .then(() => {
+        showBanner(`บันทึกหมายเหตุของ ${siteName} เรียบร้อยแล้ว`, 'success');
+      })
+      .catch((err) => {
+        showBanner(
+          err.message || `ไม่สามารถบันทึกหมายเหตุของ ${siteName} ได้`,
+          'error'
+        );
+      });
   };
 
   const goToAddPage = () => {
@@ -99,6 +496,7 @@ useEffect(() => {
       plugins: [],
       isConfirmed: false
     });
+    setFormStatus({ type: null, message: "" });
     setCurrentPage('add');
   };
 
@@ -115,6 +513,7 @@ useEffect(() => {
       plugins: site.plugins.map(p => ({ ...p })),
       isConfirmed: site.isConfirmed
     });
+    setFormStatus({ type: null, message: "" });
     setCurrentPage('edit');
   };
 
@@ -122,6 +521,7 @@ useEffect(() => {
     setCurrentPage('dashboard');
     setEditingSite(null);
     setFormData({});
+    setFormStatus({ type: null, message: "" });
   };
 
   const goToConfirmedPage = () => {
@@ -169,38 +569,83 @@ useEffect(() => {
   };
 
   // ปรับปรุงการ validation ในฟังก์ชัน saveChanges
-  const saveChanges = () => {
-    // เพิ่มการตรวจสอบข้อมูลที่จำเป็น
+  const saveChanges = async () => {
     if (!formData.name || !formData.url) {
-      alert('กรุณากรอกชื่อเว็บไซต์และ URL');
+      setFormStatus({ type: 'error', message: 'กรุณากรอกชื่อเว็บไซต์และ URL' });
       return;
     }
 
-    // ตรวจสอบ URL format
     try {
       new URL(formData.url);
     } catch {
-      alert('กรุณากรอก URL ที่ถูกต้อง (เช่น https://example.com)');
+      setFormStatus({ type: 'error', message: 'กรุณากรอก URL ที่ถูกต้อง (เช่น https://example.com)' });
       return;
     }
 
-    if (currentPage === 'add') {
-      const newSite = {
-        ...formData,
-        id: Math.max(...sites.map(s => s.id)) + 1,
-        lastChecked: new Date().toLocaleString('th-TH')
-      };
-      setSites(prev => [...prev, newSite]);
-      alert(`เพิ่มเว็บไซต์ ${formData.name} เรียบร้อยแล้ว`);
-    } else {
-      setSites(prev =>
-        prev.map(site =>
-          site.id === editingSite.id ? { ...site, ...formData } : site
-        )
-      );
-      alert(`บันทึกการแก้ไข ${formData.name} เรียบร้อยแล้ว`);
+    const sanitisedTheme = {
+      name: formData.theme?.name || '',
+      version: formData.theme?.version || '',
+    };
+
+    const sanitisedPlugins = Array.isArray(formData.plugins)
+      ? formData.plugins.map((plugin) => ({
+          name: plugin?.name || '',
+          version: plugin?.version || '',
+        }))
+      : [];
+
+    const basePayload = {
+      name: formData.name,
+      url: formData.url,
+      logo: formData.logo || 'https://via.placeholder.com/50',
+      wordpressVersion: formData.wordpressVersion || '',
+      status: formData.status || 'healthy',
+      maintenanceNotes: formData.maintenanceNotes || '',
+      theme: sanitisedTheme,
+      plugins: sanitisedPlugins,
+      isConfirmed: Boolean(formData.isConfirmed),
+    };
+
+    const siteLabel = formData.name || editingSite?.name || 'เว็บไซต์';
+
+    setFormStatus({ type: null, message: '' });
+    setIsSavingChanges(true);
+
+    try {
+      if (currentPage === 'add') {
+        const payload = {
+          ...basePayload,
+          lastChecked: new Date().toISOString(),
+        };
+
+        await createWordpressSite(payload);
+        await loadSites({ showLoader: false });
+        showBanner(`เพิ่มเว็บไซต์ ${siteLabel} เรียบร้อยแล้ว`, 'success');
+        goBackToDashboard();
+      } else if (editingSite) {
+        const payload = {
+          ...basePayload,
+          lastChecked: editingSite.lastChecked || null,
+        };
+
+        await updateWordpressSite(editingSite.id, payload);
+        await loadSites({ showLoader: false });
+        showBanner(`บันทึกการแก้ไข ${siteLabel} เรียบร้อยแล้ว`, 'success');
+        goBackToDashboard();
+      }
+    } catch (err) {
+      console.error('Failed to save WordPress site:', err);
+      const message = err?.message || '';
+      const friendlyMessage = /collection|Mongo/i.test(message)
+        ? `${message} ตรวจสอบการตั้งค่า MongoDB หรือสิทธิ์การเข้าถึง collection`
+        : message;
+      setFormStatus({
+        type: 'error',
+        message: friendlyMessage || 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
+      });
+    } finally {
+      setIsSavingChanges(false);
     }
-    goBackToDashboard();
   };
 
   const getStatusColor = (status) => {
@@ -220,6 +665,35 @@ useEffect(() => {
       default: return '❓';
     }
   };
+
+  const showInitialLoader = isLoading && !hasFetchedInitialSites;
+
+  if (error && !hasFetchedInitialSites) {
+    return (
+      <div className="p-4 max-w-3xl mx-auto space-y-4">
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-6 text-center">
+          <h1 className="text-xl font-semibold mb-2">เกิดข้อผิดพลาดในการดึงข้อมูล</h1>
+          <p className="text-sm mb-4">{error}</p>
+          <button
+            onClick={loadSites}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            ลองอีกครั้ง
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (showInitialLoader) {
+    return (
+      <div className="p-4 max-w-6xl mx-auto">
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 text-center text-gray-600">
+          กำลังโหลดข้อมูลเว็บไซต์ WordPress...
+        </div>
+      </div>
+    );
+  }
 
   // Filter sites based on search term
   const filteredSites = sites.filter(site =>
@@ -261,6 +735,17 @@ useEffect(() => {
           </div>
 
           <div className="p-6 space-y-6">
+            {formStatus.type && (
+              <div
+                className={`rounded-lg border px-4 py-3 text-sm ${
+                  formStatus.type === 'error'
+                    ? 'bg-red-50 border-red-200 text-red-700'
+                    : 'bg-green-50 border-green-200 text-green-700'
+                }`}
+              >
+                {formStatus.message}
+              </div>
+            )}
             {/* Basic Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -420,12 +905,15 @@ useEffect(() => {
             {/* Save Buttons */}
             <div className="border-t pt-6 flex gap-3">
               <button
+                type="button"
                 onClick={saveChanges}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                disabled={isSavingChanges}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {saveButtonText}
+                {isSavingChanges ? 'กำลังบันทึก...' : saveButtonText}
               </button>
               <button
+                type="button"
                 onClick={goBackToDashboard}
                 className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium transition-colors"
               >
@@ -448,6 +936,46 @@ useEffect(() => {
       <h1 className="text-3xl font-bold text-center mb-6">
         {pageIcon} {pageTitle}
       </h1>
+
+      {banner && (
+        <div
+          className={`flex items-start justify-between gap-3 rounded-lg border px-4 py-3 text-sm ${
+            banner.type === 'error'
+              ? 'bg-red-50 border-red-200 text-red-700'
+              : banner.type === 'success'
+                ? 'bg-green-50 border-green-200 text-green-700'
+                : 'bg-blue-50 border-blue-200 text-blue-700'
+          }`}
+        >
+          <span>{banner.message}</span>
+          <button
+            type="button"
+            onClick={dismissBanner}
+            className="text-xs font-medium underline hover:opacity-80"
+          >
+            ปิด
+          </button>
+        </div>
+      )}
+
+      {hasFetchedInitialSites && isLoading && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-700 rounded-lg p-3 text-center text-sm">
+          กำลังรีเฟรชข้อมูลล่าสุด...
+        </div>
+      )}
+
+      {hasFetchedInitialSites && error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4">
+          <div className="font-semibold mb-1">ไม่สามารถรีเฟรชข้อมูลล่าสุดได้</div>
+          <p className="text-sm mb-3">{error}</p>
+          <button
+            onClick={loadSites}
+            className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+          >
+            ลองอีกครั้ง
+          </button>
+        </div>
+      )}
 
       {/* Navigation Tabs */}
       <div className="flex justify-center mb-6">
@@ -491,8 +1019,20 @@ useEffect(() => {
             </div>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={loadSites}
+            disabled={isLoading}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              isLoading
+                ? 'bg-blue-100 text-blue-300 cursor-not-allowed'
+                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+            }`}
+          >
+            🔄 รีเฟรชข้อมูล
+          </button>
           <div className="text-sm text-gray-600">
             {currentPageSites.length} เว็บไซต์ | คลิกเพื่อดูรายละเอียด
           </div>
@@ -531,11 +1071,26 @@ useEffect(() => {
           </div>
         </div>
       ) : (
-        currentPageSites.map((site) => (
-          <div
-            key={site.id}
-            className="bg-white shadow-lg rounded-lg border border-gray-200 overflow-hidden transition-all duration-200 hover:shadow-xl"
-          >
+        currentPageSites.map((site) => {
+          const mutation = siteMutations[site.id] || {};
+          const isSavingSite = mutation.status === 'saving';
+          const isConfirmSaving = mutation.action === 'confirm' && isSavingSite;
+          const isNotesSaving = mutation.action === 'notes' && isSavingSite;
+          const saveError = mutation.status === 'error' ? mutation.error : null;
+          const hasUnsavedChanges = mutation.status === 'dirty';
+          const lastSavedLabel =
+            mutation.action === 'notes' && mutation.status === 'success' && mutation.timestamp
+              ? new Date(mutation.timestamp).toLocaleTimeString('th-TH', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+              : null;
+
+          return (
+            <div
+              key={site.id}
+              className="bg-white shadow-lg rounded-lg border border-gray-200 overflow-hidden transition-all duration-200 hover:shadow-xl"
+            >
             {/* Header - Always Visible */}
             <div 
               className="p-4 cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
@@ -581,7 +1136,7 @@ useEffect(() => {
                   </div>
                   <div className="text-right text-sm text-gray-600">
                     <div>WP {site.wordpressVersion}</div>
-                    <div>{site.lastChecked}</div>
+                    <div>{formatLastChecked(site.lastChecked)}</div>
                   </div>
                   <div className="text-2xl text-gray-400 transition-transform duration-500 ease-in-out" 
                        style={{ transform: expandedSites[site.id] ? 'rotate(180deg)' : 'rotate(0deg)' }}>
@@ -600,13 +1155,16 @@ useEffect(() => {
                 <div className="flex gap-2 mb-4">
                   {!site.isConfirmed && (
                     <button
+                      type="button"
                       onClick={() => confirmUpdate(site.id)}
-                      className="px-4 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition-colors"
+                      disabled={isConfirmSaving}
+                      className="px-4 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      ✅ ยืนยันการอัปเดต
+                      {isConfirmSaving ? 'กำลังยืนยัน...' : '✅ ยืนยันการอัปเดต'}
                     </button>
                   )}
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       goToEditPage(site);
@@ -614,6 +1172,17 @@ useEffect(() => {
                     className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors"
                   >
                     ✏️ แก้ไข
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openDeleteDialog(site);
+                    }}
+                    disabled={deleteDialog.isDeleting && deleteDialog.site?.id === site.id}
+                    className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    🗑️ ลบเว็บไซต์
                   </button>
                 </div>
 
@@ -678,11 +1247,108 @@ useEffect(() => {
                     value={site.maintenanceNotes}
                     onChange={(e) => updateMaintenanceNotes(site.id, e.target.value)}
                   />
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleSaveMaintenanceNotes(site.id)}
+                      disabled={isNotesSaving}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {isNotesSaving ? 'กำลังบันทึก...' : '💾 บันทึกหมายเหตุ'}
+                    </button>
+                    {hasUnsavedChanges && (
+                      <span className="text-xs text-amber-600">มีการแก้ไขที่ยังไม่บันทึก</span>
+                    )}
+                    {saveError && (
+                      <span className="text-xs text-red-600">{saveError}</span>
+                    )}
+                    {!hasUnsavedChanges && !saveError && lastSavedLabel && (
+                      <span className="text-xs text-green-600">บันทึกล่าสุด {lastSavedLabel}</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
+            </div>
+          );
+        })
+      )}
+
+      {deleteDialog.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => {
+              if (!deleteDialog.isDeleting) {
+                closeDeleteDialog();
+              }
+            }}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative z-10 w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden"
+          >
+            <div className="px-6 py-5 bg-red-50 border-b border-red-100 flex items-start gap-3">
+              <div className="text-3xl">🗑️</div>
+              <div>
+                <h2 className="text-xl font-semibold text-red-700 mb-1">ยืนยันการลบเว็บไซต์</h2>
+                <p className="text-sm text-red-600">
+                  การลบเว็บไซต์ <span className="font-semibold">{deleteDialog.site?.name}</span> จะไม่สามารถกู้คืนได้
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeDeleteDialog}
+                disabled={deleteDialog.isDeleting}
+                className="ml-auto text-red-500 hover:text-red-700 disabled:opacity-50"
+                aria-label="ปิดหน้าต่างยืนยันการลบ"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700">
+                URL: <a href={deleteDialog.site?.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline break-all">{deleteDialog.site?.url}</a>
+              </div>
+              <label className="flex items-start gap-3 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  className="mt-1 w-4 h-4 text-red-600 border-gray-300 rounded"
+                  checked={deleteDialog.isChecked}
+                  onChange={toggleDeleteConfirmation}
+                  disabled={deleteDialog.isDeleting}
+                />
+                <span>
+                  ฉันเข้าใจและยืนยันที่จะลบเว็บไซต์นี้ออกจากระบบถาวร
+                </span>
+              </label>
+              {deleteDialog.error && (
+                <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+                  {deleteDialog.error}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeDeleteDialog}
+                disabled={deleteDialog.isDeleting}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-800 disabled:opacity-60"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteSite}
+                disabled={!deleteDialog.isChecked || deleteDialog.isDeleting}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {deleteDialog.isDeleting ? 'กำลังลบ...' : 'ยืนยันการลบ'}
+              </button>
+            </div>
           </div>
-        ))
+        </div>
       )}
     </div>
   );

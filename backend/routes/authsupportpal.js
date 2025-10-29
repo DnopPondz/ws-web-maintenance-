@@ -2,22 +2,29 @@ import express from 'express';
 
 import { getMongoose } from '../database/mongo.js';
 import { checkAdminRole } from '../middleware/checkAdminRole.js';
-import WordpressSite from '../models/WordpressSite.js';
+import SupportpalSite from '../models/SupportpalSite.js';
 
 const mongoose = await getMongoose();
 
 const router = express.Router();
 
-const parseMaybeJson = (value, fallback) => {
+const DEFAULT_VERSIONS = {
+  nginx: '',
+  php: '',
+  mariadb: '',
+  supportpal: '',
+};
+
+const parseMaybeJson = (value) => {
   if (!value) {
-    return fallback;
+    return null;
   }
 
   if (typeof value === 'string') {
     try {
       return JSON.parse(value);
     } catch (error) {
-      return fallback;
+      return null;
     }
   }
 
@@ -25,7 +32,7 @@ const parseMaybeJson = (value, fallback) => {
     return value;
   }
 
-  return fallback;
+  return null;
 };
 
 const toBoolean = (value, fallback = false) => {
@@ -53,32 +60,24 @@ const parseDateInput = (value) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
+const normalizeVersions = (rawVersions) => {
+  const candidate = parseMaybeJson(rawVersions) ?? rawVersions;
+  const base = { ...DEFAULT_VERSIONS };
+
+  if (candidate && typeof candidate === 'object') {
+    for (const [key, value] of Object.entries(candidate)) {
+      if (value === undefined || value === null) {
+        continue;
+      }
+      base[key] = typeof value === 'string' ? value : String(value);
+    }
+  }
+
+  return base;
+};
+
 const prepareSitePayload = (payload, { fallbackLastChecked = true } = {}) => {
-  const themeCandidate = parseMaybeJson(payload.theme, payload.theme);
-  const pluginsCandidate = parseMaybeJson(payload.plugins, payload.plugins);
-
-  const theme =
-    themeCandidate && typeof themeCandidate === 'object' && !Array.isArray(themeCandidate)
-      ? {
-          name: themeCandidate?.name || '',
-          version: themeCandidate?.version || '',
-        }
-      : {
-          name: payload?.theme?.name || '',
-          version: payload?.theme?.version || '',
-        };
-
-  const pluginsSource = Array.isArray(pluginsCandidate)
-    ? pluginsCandidate
-    : Array.isArray(payload?.plugins)
-      ? payload.plugins
-      : [];
-
-  const plugins = pluginsSource.map((plugin) => ({
-    name: plugin?.name || '',
-    version: plugin?.version || '',
-  }));
-
+  const versions = normalizeVersions(payload.versions);
   const lastCheckedCandidate =
     payload.lastChecked ?? payload.last_checked ?? payload.last_checked_at ?? null;
 
@@ -88,10 +87,8 @@ const prepareSitePayload = (payload, { fallbackLastChecked = true } = {}) => {
     name: payload.name,
     url: payload.url,
     logo: payload.logo,
-    wordpressVersion: payload.wordpressVersion ?? payload.wordpress_version ?? null,
     status: payload.status,
-    theme,
-    plugins,
+    versions,
     maintenanceNotes: payload.maintenanceNotes ?? payload.maintenance_notes ?? undefined,
     isConfirmed: toBoolean(payload.isConfirmed ?? payload.is_confirmed, false),
     lastChecked: parsedLastChecked ?? (fallbackLastChecked ? new Date() : undefined),
@@ -110,15 +107,8 @@ const formatSiteResponse = (site) => {
 
   return {
     ...plain,
+    versions: { ...DEFAULT_VERSIONS, ...(plain.versions || {}) },
     maintenanceNotes: plain.maintenanceNotes ?? '',
-    plugins: Array.isArray(plain.plugins) ? plain.plugins : [],
-    theme:
-      plain.theme && typeof plain.theme === 'object'
-        ? {
-            name: plain.theme.name || '',
-            version: plain.theme.version || '',
-          }
-        : { name: '', version: '' },
     lastChecked: plain.lastChecked || null,
   };
 };
@@ -134,22 +124,21 @@ router.post('/create', checkAdminRole, async (req, res) => {
     const sitePayload = prepareSitePayload(
       {
         ...req.body,
-        theme: req.body.theme ?? { name: '', version: '' },
-        plugins: Array.isArray(req.body.plugins) ? req.body.plugins : [],
+        versions: req.body.versions ?? DEFAULT_VERSIONS,
       },
       { fallbackLastChecked: true }
     );
 
     const insertPayload = stripUndefined(sitePayload);
 
-    const site = await WordpressSite.create(insertPayload);
+    const site = await SupportpalSite.create(insertPayload);
 
     res.status(201).json({
       message: 'Site created successfully',
       data: [formatSiteResponse(site)],
     });
   } catch (err) {
-    console.error('Insert error:', err);
+    console.error('Insert SupportPal site error:', err);
     if (err instanceof mongoose.Error.ValidationError) {
       return res.status(400).json({ error: err.message });
     }
@@ -159,11 +148,11 @@ router.post('/create', checkAdminRole, async (req, res) => {
 
 router.get('/site', async (req, res) => {
   try {
-    const sites = await WordpressSite.find().sort({ createdAt: 1 });
+    const sites = await SupportpalSite.find().sort({ createdAt: 1 });
 
     res.status(200).json({ data: sites.map(formatSiteResponse) });
   } catch (err) {
-    console.error('Fetch error:', err);
+    console.error('Fetch SupportPal sites error:', err);
     res.status(500).json({ error: err.message || 'Unexpected server error' });
   }
 });
@@ -185,7 +174,7 @@ router.put('/edit/:id', checkAdminRole, async (req, res) => {
 
     const updatePayload = stripUndefined(sitePayload);
 
-    const site = await WordpressSite.findByIdAndUpdate(id, updatePayload, { new: true });
+    const site = await SupportpalSite.findByIdAndUpdate(id, updatePayload, { new: true });
 
     if (!site) {
       return res.status(404).json({ error: 'Site not found' });
@@ -196,7 +185,7 @@ router.put('/edit/:id', checkAdminRole, async (req, res) => {
       data: [formatSiteResponse(site)],
     });
   } catch (err) {
-    console.error('Update error:', err);
+    console.error('Update SupportPal site error:', err);
     if (err instanceof mongoose.Error.ValidationError) {
       return res.status(400).json({ error: err.message });
     }
@@ -212,7 +201,7 @@ router.delete('/del/:id', checkAdminRole, async (req, res) => {
   }
 
   try {
-    const site = await WordpressSite.findByIdAndDelete(id);
+    const site = await SupportpalSite.findByIdAndDelete(id);
 
     if (!site) {
       return res.status(404).json({ error: 'Site not found' });
@@ -223,7 +212,7 @@ router.delete('/del/:id', checkAdminRole, async (req, res) => {
       data: [formatSiteResponse(site)],
     });
   } catch (err) {
-    console.error('Delete error:', err);
+    console.error('Delete SupportPal site error:', err);
     res.status(500).json({ error: err.message || 'Unexpected server error' });
   }
 });

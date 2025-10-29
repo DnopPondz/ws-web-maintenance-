@@ -21,7 +21,8 @@ const LoginPage = () => {
 
       router.push('/');
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed');
+      console.error('Login failed:', err);
+      setError(err.message || 'Login failed');
     }
   };
   return (
