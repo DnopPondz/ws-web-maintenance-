@@ -175,6 +175,38 @@ const WpDashboard = () => {
 
   const dismissBanner = useCallback(() => setBanner(null), []);
 
+  const loadSites = useCallback(async ({ showLoader = true } = {}) => {
+    const manageLoadingState = showLoader !== false;
+
+    if (manageLoadingState) {
+      setIsLoading(true);
+    }
+
+    setError(null);
+    try {
+      const apiSites = await fetchWordpressSites();
+      const normalisedSites = normaliseSites(apiSites);
+      initialSitesRef.current = cloneSites(normalisedSites);
+      sitesRef.current = normalisedSites;
+      setSites(normalisedSites);
+      setHasFetchedInitialSites(true);
+    } catch (err) {
+      console.error('Failed to load WordPress sites:', err);
+      const message = err?.message || '';
+      const friendlyMessage = /collection|Mongo/i.test(message)
+        ? `${message} ตรวจสอบการตั้งค่า MongoDB หรือสร้าง collection ที่หายไป`
+        : message;
+      setError(friendlyMessage || 'ไม่สามารถโหลดข้อมูลเว็บไซต์ได้');
+      if (!initialSitesRef.current.length) {
+        setSites([]);
+      }
+    } finally {
+      if (manageLoadingState) {
+        setIsLoading(false);
+      }
+    }
+  }, []);
+
   const persistSite = useCallback(
     async (siteId, overrides = {}, options = {}) => {
       const { showLoader = false, skipReload = false, action = 'update' } = options;
@@ -229,39 +261,7 @@ const WpDashboard = () => {
     [loadSites, setSiteMutation]
   );
 
-  const loadSites = useCallback(async ({ showLoader = true } = {}) => {
-    const manageLoadingState = showLoader !== false;
-
-    if (manageLoadingState) {
-      setIsLoading(true);
-    }
-
-    setError(null);
-    try {
-      const apiSites = await fetchWordpressSites();
-      const normalisedSites = normaliseSites(apiSites);
-      initialSitesRef.current = cloneSites(normalisedSites);
-      sitesRef.current = normalisedSites;
-      setSites(normalisedSites);
-      setHasFetchedInitialSites(true);
-    } catch (err) {
-      console.error('Failed to load WordPress sites:', err);
-      const message = err?.message || '';
-      const friendlyMessage = /collection|Mongo/i.test(message)
-        ? `${message} ตรวจสอบการตั้งค่า MongoDB หรือสร้าง collection ที่หายไป`
-        : message;
-      setError(friendlyMessage || 'ไม่สามารถโหลดข้อมูลเว็บไซต์ได้');
-      if (!initialSitesRef.current.length) {
-        setSites([]);
-      }
-    } finally {
-      if (manageLoadingState) {
-        setIsLoading(false);
-      }
-    }
-  }, []);
-
-useEffect(() => {
+  useEffect(() => {
     loadSites();
   }, [loadSites]);
 
