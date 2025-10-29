@@ -6,6 +6,7 @@ import {
   fetchWordpressSites,
   createWordpressSite,
   updateWordpressSite,
+  deleteWordpressSite,
 } from "../lib/api";
 
 let thaiDateFormatter;
@@ -158,6 +159,13 @@ const WpDashboard = () => {
   const [banner, setBanner] = useState(null);
   const [isSavingChanges, setIsSavingChanges] = useState(false);
   const [formStatus, setFormStatus] = useState({ type: null, message: "" });
+  const [deleteDialog, setDeleteDialog] = useState({
+    isOpen: false,
+    site: null,
+    isChecked: false,
+    isDeleting: false,
+    error: null,
+  });
 
   const setSiteMutation = useCallback((siteId, patch) => {
     setSiteMutations((prev) => ({
@@ -275,6 +283,81 @@ const WpDashboard = () => {
       ...prev,
       [id]: !prev[id]
     }));
+  };
+
+
+  const openDeleteDialog = (site) => {
+    setDeleteDialog({
+      isOpen: true,
+      site: cloneSite(site),
+      isChecked: false,
+      isDeleting: false,
+      error: null,
+    });
+  };
+
+  const closeDeleteDialog = () => {
+    setDeleteDialog({
+      isOpen: false,
+      site: null,
+      isChecked: false,
+      isDeleting: false,
+      error: null,
+    });
+  };
+
+  const toggleDeleteConfirmation = () => {
+    setDeleteDialog((prev) => ({
+      ...prev,
+      isChecked: !prev.isChecked,
+      error: null,
+    }));
+  };
+
+  const confirmDeleteSite = async () => {
+    if (!deleteDialog.site?.id) {
+      return;
+    }
+
+    const siteId = deleteDialog.site.id;
+    const siteLabel = deleteDialog.site.name || 'เว็บไซต์';
+
+    setDeleteDialog((prev) => ({
+      ...prev,
+      isDeleting: true,
+      error: null,
+    }));
+
+    try {
+      await deleteWordpressSite(siteId);
+
+      setExpandedSites((prev) => {
+        const next = { ...prev };
+        delete next[siteId];
+        return next;
+      });
+
+      setSiteMutations((prev) => {
+        if (!prev || !prev[siteId]) {
+          return prev;
+        }
+        const { [siteId]: _removed, ...rest } = prev;
+        return rest;
+      });
+
+      await loadSites({ showLoader: false });
+
+      showBanner(`ลบเว็บไซต์ ${siteLabel} เรียบร้อยแล้ว`, 'success');
+      closeDeleteDialog();
+    } catch (err) {
+      console.error('Failed to delete WordPress site:', err);
+      setDeleteDialog((prev) => ({
+        ...prev,
+        isDeleting: false,
+        error:
+          err?.message || 'ไม่สามารถลบเว็บไซต์ได้ กรุณาลองใหม่อีกครั้ง',
+      }));
+    }
   };
 
   
@@ -1060,6 +1143,17 @@ const WpDashboard = () => {
                   >
                     ✏️ แก้ไข
                   </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openDeleteDialog(site);
+                    }}
+                    disabled={deleteDialog.isDeleting && deleteDialog.site?.id === site.id}
+                    className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    🗑️ ลบเว็บไซต์
+                  </button>
                 </div>
 
                 {/* Theme and Plugins Info */}
@@ -1148,6 +1242,83 @@ const WpDashboard = () => {
             </div>
           );
         })
+      )}
+
+      {deleteDialog.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => {
+              if (!deleteDialog.isDeleting) {
+                closeDeleteDialog();
+              }
+            }}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative z-10 w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden"
+          >
+            <div className="px-6 py-5 bg-red-50 border-b border-red-100 flex items-start gap-3">
+              <div className="text-3xl">🗑️</div>
+              <div>
+                <h2 className="text-xl font-semibold text-red-700 mb-1">ยืนยันการลบเว็บไซต์</h2>
+                <p className="text-sm text-red-600">
+                  การลบเว็บไซต์ <span className="font-semibold">{deleteDialog.site?.name}</span> จะไม่สามารถกู้คืนได้
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeDeleteDialog}
+                disabled={deleteDialog.isDeleting}
+                className="ml-auto text-red-500 hover:text-red-700 disabled:opacity-50"
+                aria-label="ปิดหน้าต่างยืนยันการลบ"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700">
+                URL: <a href={deleteDialog.site?.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline break-all">{deleteDialog.site?.url}</a>
+              </div>
+              <label className="flex items-start gap-3 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  className="mt-1 w-4 h-4 text-red-600 border-gray-300 rounded"
+                  checked={deleteDialog.isChecked}
+                  onChange={toggleDeleteConfirmation}
+                  disabled={deleteDialog.isDeleting}
+                />
+                <span>
+                  ฉันเข้าใจและยืนยันที่จะลบเว็บไซต์นี้ออกจากระบบถาวร
+                </span>
+              </label>
+              {deleteDialog.error && (
+                <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+                  {deleteDialog.error}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeDeleteDialog}
+                disabled={deleteDialog.isDeleting}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-800 disabled:opacity-60"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteSite}
+                disabled={!deleteDialog.isChecked || deleteDialog.isDeleting}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {deleteDialog.isDeleting ? 'กำลังลบ...' : 'ยืนยันการลบ'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
