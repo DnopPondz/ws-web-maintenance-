@@ -40,7 +40,7 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
       clearSessionAndRedirect();
     } catch (err) {
       console.error('Logout failed:', err);
-      setLogoutError(err.message || 'ไม่สามารถออกจากระบบได้ กรุณาลองใหม่อีกครั้ง');
+      setLogoutError(err.message || 'Unable to log out. Please try again.');
     } finally {
       setIsLoggingOut(false);
     }
@@ -201,7 +201,7 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
             disabled={isLoggingOut}
             className="w-full py-2 rounded-md text-sm font-medium text-red-200 hover:text-red-100 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isLoggingOut ? 'กำลังออกจากระบบ...' : 'Logout'}
+            {isLoggingOut ? 'Logging out...' : 'Logout'}
           </button>
           {logoutError && (
             <div className="text-xs text-red-100 bg-red-500/20 rounded-md px-3 py-2 space-y-1" aria-live="polite">
@@ -211,7 +211,7 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
                 onClick={handleForceLogout}
                 className="underline text-red-100 hover:text-red-50"
               >
-                บังคับออกจากระบบ
+                Force logout
               </button>
             </div>
           )}
