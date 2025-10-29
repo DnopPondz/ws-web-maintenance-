@@ -246,9 +246,10 @@ const WpDashboard = () => {
       setHasFetchedInitialSites(true);
     } catch (err) {
       console.error('Failed to load WordPress sites:', err);
-      const friendlyMessage = err.message?.includes('Supabase table')
-        ? `${err.message} ตรวจสอบการตั้งค่าฐานข้อมูลหรือสร้างตารางใหม่`
-        : err.message;
+      const message = err?.message || '';
+      const friendlyMessage = /collection|Mongo/i.test(message)
+        ? `${message} ตรวจสอบการตั้งค่า MongoDB หรือสร้าง collection ที่หายไป`
+        : message;
       setError(friendlyMessage || 'ไม่สามารถโหลดข้อมูลเว็บไซต์ได้');
       if (!initialSitesRef.current.length) {
         setSites([]);
@@ -521,9 +522,10 @@ useEffect(() => {
       }
     } catch (err) {
       console.error('Failed to save WordPress site:', err);
-      const friendlyMessage = err.message?.includes('Supabase table')
-        ? `${err.message} ตรวจสอบการตั้งค่าฐานข้อมูลหรือสิทธิ์การเข้าถึง`
-        : err.message;
+      const message = err?.message || '';
+      const friendlyMessage = /collection|Mongo/i.test(message)
+        ? `${message} ตรวจสอบการตั้งค่า MongoDB หรือสิทธิ์การเข้าถึง collection`
+        : message;
       setFormStatus({
         type: 'error',
         message: friendlyMessage || 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
