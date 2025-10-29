@@ -8,10 +8,16 @@ function sanitizeMongoUri(rawUri) {
     return DEFAULT_URI;
   }
 
-  const trimmed = rawUri.trim();
+  let trimmed = rawUri.trim();
+  const prefix = 'MONGO_URI=';
+  const upperPrefix = prefix.toUpperCase();
 
-  if (trimmed.toUpperCase().startsWith('MONGO_URI=')) {
-    return trimmed.slice('MONGO_URI='.length);
+  while (trimmed.toUpperCase().startsWith(upperPrefix)) {
+    trimmed = trimmed.slice(prefix.length).trimStart();
+  }
+
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    trimmed = trimmed.slice(1, -1).trim();
   }
 
   return trimmed;
@@ -95,6 +101,11 @@ export async function connectMongo() {
             console.error(
               `Unable to connect to MongoDB using URI "${uri}". ` +
                 'Ensure the database is running and the credentials are correct.'
+            );
+          } else if (error.name === 'MongoParseError') {
+            console.error(
+              `The configured MongoDB URI "${uri}" is invalid. ` +
+                'Double-check that it starts with "mongodb://" or "mongodb+srv://".'
             );
           }
           throw error;
