@@ -53,6 +53,174 @@ const parseDateInput = (value) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
+const normaliseString = (value) => {
+  if (value === undefined || value === null) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  return String(value).trim();
+};
+
+const normalisePluginList = (plugins = []) => {
+  if (!Array.isArray(plugins)) {
+    return [];
+  }
+
+  return plugins.map((plugin, index) => {
+    const name = normaliseString(plugin?.name);
+    const fallbackName = name || `Plugin ${index + 1}`;
+
+    return {
+      name: fallbackName,
+      version: normaliseString(plugin?.version),
+    };
+  });
+};
+
+const formatNameAndVersion = (name, version) => {
+  const normalisedName = normaliseString(name);
+  const normalisedVersion = normaliseString(version);
+
+  if (normalisedName && normalisedVersion) {
+    return `${normalisedName} ${normalisedVersion}`;
+  }
+
+  if (normalisedVersion) {
+    return normalisedVersion;
+  }
+
+  return normalisedName;
+};
+
+const buildSummaryFromDetails = (details = []) =>
+  details
+    .map(({ label, previous, current }) => {
+      const prev = normaliseString(previous);
+      const curr = normaliseString(current);
+
+      if (!prev && !curr) {
+        return label;
+      }
+
+      if (!prev) {
+        return `${label} ${curr}`.trim();
+      }
+
+      if (!curr) {
+        return `${label} ${prev}`.trim();
+      }
+
+      if (prev === curr) {
+        return `${label} ${curr}`.trim();
+      }
+
+      return `${label} ${prev} → ${curr}`.trim();
+    })
+    .filter(Boolean)
+    .join('; ');
+
+const deriveWordpressChanges = (previousSite, nextSite) => {
+  const details = [];
+
+  const previousVersion = normaliseString(previousSite?.wordpressVersion);
+  const nextVersion = normaliseString(
+    nextSite?.wordpressVersion ?? previousSite?.wordpressVersion
+  );
+
+  if (previousVersion || nextVersion) {
+    if (previousVersion !== nextVersion) {
+      details.push({
+        field: 'wordpressVersion',
+        label: 'WordPress core',
+        previous: previousVersion,
+        current: nextVersion,
+      });
+    }
+  }
+
+  const previousTheme = previousSite?.theme || {};
+  const nextTheme = nextSite?.theme ?? previousTheme;
+  const previousThemeLabel = formatNameAndVersion(
+    previousTheme?.name,
+    previousTheme?.version
+  );
+  const nextThemeLabel = formatNameAndVersion(
+    nextTheme?.name ?? previousTheme?.name,
+    nextTheme?.version ?? previousTheme?.version
+  );
+
+  if (previousThemeLabel !== nextThemeLabel) {
+    if (previousThemeLabel || nextThemeLabel) {
+      details.push({
+        field: 'theme',
+        label: 'Theme',
+        previous: previousThemeLabel,
+        current: nextThemeLabel,
+      });
+    }
+  }
+
+  const previousPlugins = normalisePluginList(previousSite?.plugins);
+  const nextPlugins = normalisePluginList(nextSite?.plugins);
+  const previousPluginMap = new Map(
+    previousPlugins.map((plugin) => [plugin.name, plugin])
+  );
+  const nextPluginMap = new Map(nextPlugins.map((plugin) => [plugin.name, plugin]));
+  const pluginNames = new Set([
+    ...Array.from(previousPluginMap.keys()),
+    ...Array.from(nextPluginMap.keys()),
+  ]);
+
+  for (const name of pluginNames) {
+    const previousPlugin = previousPluginMap.get(name);
+    const nextPlugin = nextPluginMap.get(name);
+
+    if (!previousPlugin && !nextPlugin) {
+      continue;
+    }
+
+    if (!previousPlugin && nextPlugin) {
+      if (nextPlugin.version) {
+        details.push({
+          field: `plugin:${name}`,
+          label: `Plugin: ${name}`,
+          previous: '',
+          current: nextPlugin.version,
+        });
+      }
+      continue;
+    }
+
+    if (previousPlugin && !nextPlugin) {
+      // Skip removed plugins for now.
+      continue;
+    }
+
+    const previousVersionValue = normaliseString(previousPlugin?.version);
+    const nextVersionValue = normaliseString(
+      nextPlugin?.version ?? previousPlugin?.version
+    );
+
+    if (previousVersionValue !== nextVersionValue) {
+      details.push({
+        field: `plugin:${name}`,
+        label: `Plugin: ${name}`,
+        previous: previousVersionValue,
+        current: nextVersionValue,
+      });
+    }
+  }
+
+  return {
+    details,
+    summary: buildSummaryFromDetails(details),
+  };
+};
+
 const prepareSitePayload = (payload, { fallbackLastChecked = true } = {}) => {
   const themeCandidate = parseMaybeJson(payload.theme, payload.theme);
   const pluginsCandidate = parseMaybeJson(payload.plugins, payload.plugins);
@@ -176,6 +344,12 @@ router.put('/edit/:id', checkAdminRole, async (req, res) => {
   }
 
   try {
+    const existingSite = await WordpressSite.findById(id);
+
+    if (!existingSite) {
+      return res.status(404).json({ error: 'Site not found' });
+    }
+
     const sitePayload = prepareSitePayload(
       {
         ...req.body,
@@ -185,11 +359,20 @@ router.put('/edit/:id', checkAdminRole, async (req, res) => {
 
     const updatePayload = stripUndefined(sitePayload);
 
-    const site = await WordpressSite.findByIdAndUpdate(id, updatePayload, { new: true });
+    const { details, summary } = deriveWordpressChanges(
+      existingSite.toObject({ depopulate: true }),
+      updatePayload
+    );
 
-    if (!site) {
-      return res.status(404).json({ error: 'Site not found' });
+    if (details.length > 0) {
+      updatePayload.lastChangeDetails = details;
+      updatePayload.lastChangeSummary = summary;
+      updatePayload.lastChangeDetectedAt = new Date();
     }
+
+    const site = await WordpressSite.findByIdAndUpdate(id, updatePayload, {
+      new: true,
+    });
 
     res.status(200).json({
       message: 'Site updated successfully',

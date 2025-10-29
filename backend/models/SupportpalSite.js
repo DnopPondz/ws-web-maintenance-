@@ -12,6 +12,32 @@ const defaultVersions = {
   supportpal: '',
 };
 
+const changeDetailSchema = new mongoose.Schema(
+  {
+    field: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    label: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    previous: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    current: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+  },
+  { _id: false }
+);
+
 const supportpalSiteSchema = new mongoose.Schema(
   {
     name: {
@@ -49,6 +75,19 @@ const supportpalSiteSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    lastChangeSummary: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    lastChangeDetails: {
+      type: [changeDetailSchema],
+      default: [],
+    },
+    lastChangeDetectedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -61,6 +100,9 @@ const supportpalSiteSchema = new mongoose.Schema(
         ret.id = ret._id.toString();
         if (ret.lastChecked instanceof Date) {
           ret.lastChecked = ret.lastChecked.toISOString();
+        }
+        if (ret.lastChangeDetectedAt instanceof Date) {
+          ret.lastChangeDetectedAt = ret.lastChangeDetectedAt.toISOString();
         }
         if (ret.versions instanceof Map) {
           ret.versions = Object.fromEntries(ret.versions.entries());
@@ -77,6 +119,9 @@ const supportpalSiteSchema = new mongoose.Schema(
         ret.id = ret._id.toString();
         if (ret.lastChecked instanceof Date) {
           ret.lastChecked = ret.lastChecked.toISOString();
+        }
+        if (ret.lastChangeDetectedAt instanceof Date) {
+          ret.lastChangeDetectedAt = ret.lastChangeDetectedAt.toISOString();
         }
         if (ret.versions instanceof Map) {
           ret.versions = Object.fromEntries(ret.versions.entries());

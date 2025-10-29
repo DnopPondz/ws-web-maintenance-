@@ -60,6 +60,94 @@ const parseDateInput = (value) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
+const normaliseString = (value) => {
+  if (value === undefined || value === null) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  return String(value).trim();
+};
+
+const buildSummaryFromDetails = (details = []) =>
+  details
+    .map(({ label, previous, current }) => {
+      const prev = normaliseString(previous);
+      const curr = normaliseString(current);
+
+      if (!prev && !curr) {
+        return label;
+      }
+
+      if (!prev) {
+        return `${label} ${curr}`.trim();
+      }
+
+      if (!curr) {
+        return `${label} ${prev}`.trim();
+      }
+
+      if (prev === curr) {
+        return `${label} ${curr}`.trim();
+      }
+
+      return `${label} ${prev} → ${curr}`.trim();
+    })
+    .filter(Boolean)
+    .join('; ');
+
+const deriveSupportpalChanges = (previousSite, nextSite) => {
+  const previousPlain =
+    previousSite && typeof previousSite.toObject === 'function'
+      ? previousSite.toObject({ depopulate: true })
+      : previousSite || {};
+
+  const previousVersions = normalizeVersions(previousPlain?.versions);
+  const nextVersions = normalizeVersions(nextSite?.versions ?? previousVersions);
+
+  const labels = {
+    nginx: 'Nginx',
+    php: 'PHP',
+    mariadb: 'MariaDB',
+    supportpal: 'SupportPal',
+  };
+
+  const keys = new Set([
+    ...Object.keys(previousVersions),
+    ...Object.keys(nextVersions),
+  ]);
+
+  const details = [];
+
+  for (const key of keys) {
+    const previousValue = normaliseString(previousVersions[key]);
+    const nextValue = normaliseString(
+      nextVersions[key] ?? previousVersions[key]
+    );
+
+    if (previousValue === nextValue) {
+      continue;
+    }
+
+    const label = labels[key] || key;
+
+    details.push({
+      field: `versions.${key}`,
+      label,
+      previous: previousValue,
+      current: nextValue,
+    });
+  }
+
+  return {
+    details,
+    summary: buildSummaryFromDetails(details),
+  };
+};
+
 const normalizeVersions = (rawVersions) => {
   const candidate = parseMaybeJson(rawVersions) ?? rawVersions;
   const base = { ...DEFAULT_VERSIONS };
@@ -165,6 +253,12 @@ router.put('/edit/:id', checkAdminRole, async (req, res) => {
   }
 
   try {
+    const existingSite = await SupportpalSite.findById(id);
+
+    if (!existingSite) {
+      return res.status(404).json({ error: 'Site not found' });
+    }
+
     const sitePayload = prepareSitePayload(
       {
         ...req.body,
@@ -174,11 +268,17 @@ router.put('/edit/:id', checkAdminRole, async (req, res) => {
 
     const updatePayload = stripUndefined(sitePayload);
 
-    const site = await SupportpalSite.findByIdAndUpdate(id, updatePayload, { new: true });
+    const { details, summary } = deriveSupportpalChanges(existingSite, updatePayload);
 
-    if (!site) {
-      return res.status(404).json({ error: 'Site not found' });
+    if (details.length > 0) {
+      updatePayload.lastChangeDetails = details;
+      updatePayload.lastChangeSummary = summary;
+      updatePayload.lastChangeDetectedAt = new Date();
     }
+
+    const site = await SupportpalSite.findByIdAndUpdate(id, updatePayload, {
+      new: true,
+    });
 
     res.status(200).json({
       message: 'Site updated successfully',
