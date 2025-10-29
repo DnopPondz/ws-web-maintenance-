@@ -125,6 +125,12 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
         <nav className="flex-1 p-4">
           <div className="space-y-2">
             <NavLink href="/" icon="home" label="Home" isOpen={isOpen} />
+            <NavLink
+              href="/dashboard"
+              icon="insights"
+              label="Dashboard"
+              isOpen={isOpen}
+            />
 
             {/* Dashboard with Submenu */}
             <div>
