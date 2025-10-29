@@ -437,6 +437,8 @@ const WpDashboard = () => {
     return () => clearInterval(interval);
   }, [hasFetchedInitialSites, resetConfirmedSitesForNewWeek]);
 
+  
+
   const toggleDropdown = (id, type) => {
     setOpenDropdowns((prev) => ({
       ...prev,

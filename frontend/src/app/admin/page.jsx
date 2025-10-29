@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Plus, Edit, Trash2, Eye, EyeOff } from "lucide-react";
-import axios from "../lib/api.js";
+
 
 const UserManagePage = () => {
   const [users, setUsers] = useState([]);
