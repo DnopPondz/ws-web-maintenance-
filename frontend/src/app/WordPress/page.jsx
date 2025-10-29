@@ -1,8 +1,48 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
+import { useState, useEffect, useCallback, useRef } from "react";
 
+import { fetchWordpressSites } from "../lib/api";
+
+const cloneSites = (sites = []) =>
+  sites.map((site) => ({
+    ...site,
+    theme: site.theme ? { ...site.theme } : { name: "", version: "" },
+    plugins: Array.isArray(site.plugins)
+      ? site.plugins.map((plugin) => ({ ...plugin }))
+      : [],
+  }));
+
+const normaliseSites = (rawSites = []) =>
+  rawSites.map((site, index) => ({
+    id: typeof site?.id === "number" ? site.id : index + 1,
+    name: site?.name || "Unnamed Site",
+    url: site?.url || "",
+    logo: site?.logo || "https://via.placeholder.com/50",
+    wordpressVersion: site?.wordpressVersion || "N/A",
+    status: site?.status || "healthy",
+    maintenanceNotes: site?.maintenanceNotes || "",
+    theme: {
+      name: site?.theme?.name || "N/A",
+      version: site?.theme?.version || "N/A",
+    },
+    plugins: Array.isArray(site?.plugins)
+      ? site.plugins.map((plugin, pluginIndex) => ({
+          name: plugin?.name || `Plugin ${pluginIndex + 1}`,
+          version: plugin?.version || "N/A",
+        }))
+      : [],
+    isConfirmed: Boolean(site?.isConfirmed),
+    lastChecked: site?.lastChecked || "-",
+  }));
+
+const cloneSite = (site) => {
+  if (!site) {
+    return null;
+  }
+
+  return cloneSites([site])[0];
+};
 
 const WpDashboard = () => {
   const [sites, setSites] = useState([]);
@@ -12,12 +52,34 @@ const WpDashboard = () => {
   const [editingSite, setEditingSite] = useState(null);
   const [formData, setFormData] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [hasFetchedInitialSites, setHasFetchedInitialSites] = useState(false);
+  const initialSitesRef = useRef([]);
+
+  const loadSites = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const apiSites = await fetchWordpressSites();
+      const normalisedSites = normaliseSites(apiSites);
+      initialSitesRef.current = cloneSites(normalisedSites);
+      setSites(normalisedSites);
+      setHasFetchedInitialSites(true);
+    } catch (err) {
+      console.error('Failed to load WordPress sites:', err);
+      setError(err.message || 'ไม่สามารถโหลดข้อมูลเว็บไซต์ได้');
+      if (!initialSitesRef.current.length) {
+        setSites([]);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
 useEffect(() => {
-    axios.get('http://localhost:5000/api/wp/site')
-      .then(res => setSites(res.data.data))
-      .catch(err => console.error(err));
-  }, []);
+    loadSites();
+  }, [loadSites]);
 
 
   const toggleSiteExpansion = (id) => {
@@ -31,8 +93,12 @@ useEffect(() => {
 
   // ปรับปรุงการใช้ useCallback เพื่อป้องกัน unnecessary re-renders
   const resetToMainPage = useCallback(() => {
-    // ใช้ deep copy เพื่อหลีกเลี่ยงปัญหา reference
-    setSites(JSON.parse(JSON.stringify(initialSites)));
+    if (!initialSitesRef.current.length) {
+      console.warn('No initial WordPress site data available to reset.');
+      return;
+    }
+
+    setSites(cloneSites(initialSitesRef.current));
     setExpandedSites({});
     setOpenDropdowns({});
     setCurrentPage('dashboard');
@@ -43,12 +109,16 @@ useEffect(() => {
   }, []);
 
   useEffect(() => {
+    if (!hasFetchedInitialSites) {
+      return;
+    }
+
     const checkAndReset = () => {
       const now = new Date();
       const dayOfWeek = now.getDay(); // 0 = อาทิตย์, 1 = จันทร์
       const hours = now.getHours();
       const minutes = now.getMinutes();
-      
+
       // ตรวจสอบว่าเป็นวันจันทร์เที่ยงคืน (00:00)
       if (dayOfWeek === 1 && hours === 0 && minutes === 0) {
         resetToMainPage();
@@ -57,10 +127,10 @@ useEffect(() => {
 
     // ตั้งเวลาตรวจสอบทุกนาที
     const interval = setInterval(checkAndReset, 60000);
-    
+
     // ทำความสะอาดเมื่อ component unmount
     return () => clearInterval(interval);
-  }, [resetToMainPage]); // เพิ่ม dependency array
+  }, [resetToMainPage, hasFetchedInitialSites]); // เพิ่ม dependency array
 
   const toggleDropdown = (id, type) => {
     setOpenDropdowns((prev) => ({
@@ -185,18 +255,37 @@ useEffect(() => {
     }
 
     if (currentPage === 'add') {
-      const newSite = {
+      const nextId = sites.length
+        ? Math.max(...sites.map((s) => (typeof s.id === 'number' ? s.id : Number(s.id) || 0))) + 1
+        : 1;
+
+      const newSite = cloneSite({
         ...formData,
-        id: Math.max(...sites.map(s => s.id)) + 1,
-        lastChecked: new Date().toLocaleString('th-TH')
-      };
-      setSites(prev => [...prev, newSite]);
+        id: nextId,
+        lastChecked: new Date().toLocaleString('th-TH'),
+        isConfirmed: Boolean(formData.isConfirmed),
+      });
+
+      if (!newSite) {
+        alert('ไม่สามารถเพิ่มเว็บไซต์ใหม่ได้');
+        return;
+      }
+
+      setSites((prev) => [...prev, newSite]);
       alert(`เพิ่มเว็บไซต์ ${formData.name} เรียบร้อยแล้ว`);
-    } else {
-      setSites(prev =>
-        prev.map(site =>
-          site.id === editingSite.id ? { ...site, ...formData } : site
-        )
+    } else if (editingSite) {
+      const updatedSite = cloneSite({
+        ...editingSite,
+        ...formData,
+      });
+
+      if (!updatedSite) {
+        alert('ไม่สามารถบันทึกการแก้ไขได้ กรุณาลองอีกครั้ง');
+        return;
+      }
+
+      setSites((prev) =>
+        prev.map((site) => (site.id === editingSite.id ? updatedSite : site))
       );
       alert(`บันทึกการแก้ไข ${formData.name} เรียบร้อยแล้ว`);
     }
@@ -220,6 +309,35 @@ useEffect(() => {
       default: return '❓';
     }
   };
+
+  const showInitialLoader = isLoading && !hasFetchedInitialSites;
+
+  if (error && !hasFetchedInitialSites) {
+    return (
+      <div className="p-4 max-w-3xl mx-auto space-y-4">
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-6 text-center">
+          <h1 className="text-xl font-semibold mb-2">เกิดข้อผิดพลาดในการดึงข้อมูล</h1>
+          <p className="text-sm mb-4">{error}</p>
+          <button
+            onClick={loadSites}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            ลองอีกครั้ง
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (showInitialLoader) {
+    return (
+      <div className="p-4 max-w-6xl mx-auto">
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 text-center text-gray-600">
+          กำลังโหลดข้อมูลเว็บไซต์ WordPress...
+        </div>
+      </div>
+    );
+  }
 
   // Filter sites based on search term
   const filteredSites = sites.filter(site =>
@@ -449,6 +567,25 @@ useEffect(() => {
         {pageIcon} {pageTitle}
       </h1>
 
+      {hasFetchedInitialSites && isLoading && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-700 rounded-lg p-3 text-center text-sm">
+          กำลังรีเฟรชข้อมูลล่าสุด...
+        </div>
+      )}
+
+      {hasFetchedInitialSites && error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4">
+          <div className="font-semibold mb-1">ไม่สามารถรีเฟรชข้อมูลล่าสุดได้</div>
+          <p className="text-sm mb-3">{error}</p>
+          <button
+            onClick={loadSites}
+            className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+          >
+            ลองอีกครั้ง
+          </button>
+        </div>
+      )}
+
       {/* Navigation Tabs */}
       <div className="flex justify-center mb-6">
         <div className="bg-gray-100 p-1 rounded-lg flex gap-1">
@@ -491,8 +628,20 @@ useEffect(() => {
             </div>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={loadSites}
+            disabled={isLoading}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              isLoading
+                ? 'bg-blue-100 text-blue-300 cursor-not-allowed'
+                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+            }`}
+          >
+            🔄 รีเฟรชข้อมูล
+          </button>
           <div className="text-sm text-gray-600">
             {currentPageSites.length} เว็บไซต์ | คลิกเพื่อดูรายละเอียด
           </div>
