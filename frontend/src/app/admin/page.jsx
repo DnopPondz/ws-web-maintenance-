@@ -1,31 +1,31 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Edit, Trash2, Eye, EyeOff, X, ChevronDown } from "lucide-react";
+
 import PageContainer from "../components/PageContainer";
 import { apiClient } from "../lib/api";
+import { useAuth } from "../lib/auth-context";
 
+const INITIAL_FORM_STATE = {
+  username: "",
+  email: "",
+  password: "",
+  firstname: "",
+  lastname: "",
+  role: "user",
+  status: "active",
+};
 
 const UserManagePage = () => {
   const [users, setUsers] = useState([]);
   const [error, setError] = useState("");
-  const [isCheckingAccess, setIsCheckingAccess] = useState(true);
-  const [hasAccess, setHasAccess] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState("add");
   const [selectedUser, setSelectedUser] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({
-    username: "",
-    email: "",
-    password: "",
-    firstname: "",
-    lastname: "",
-    role: "user",
-    status: "active",
-  });
-  const router = useRouter();
+  const [formData, setFormData] = useState(INITIAL_FORM_STATE);
+  const { user } = useAuth();
 
   const normalizeRole = useCallback((role) => {
     if (typeof role !== "string") {
@@ -49,6 +49,9 @@ const UserManagePage = () => {
     return ["active", "suspended"].includes(normalized) ? normalized : "active";
   }, []);
 
+  const userRole = useMemo(() => normalizeRole(user?.role), [normalizeRole, user?.role]);
+  const isAdmin = userRole === "admin";
+
   const titleCase = (value = "") => {
     if (!value) {
       return "";
@@ -62,10 +65,10 @@ const UserManagePage = () => {
       setError("");
       const response = await apiClient.get("/users");
       const mappedUsers = Array.isArray(response.data?.users)
-        ? response.data.users.map((user) => ({
-            ...user,
-            role: normalizeRole(user.role),
-            status: normalizeStatus(user.status),
+        ? response.data.users.map((mappedUser) => ({
+            ...mappedUser,
+            role: normalizeRole(mappedUser.role),
+            status: normalizeStatus(mappedUser.status),
           }))
         : [];
       setUsers(mappedUsers);
@@ -78,64 +81,31 @@ const UserManagePage = () => {
   }, [normalizeRole, normalizeStatus]);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-
-    if (!storedUser) {
-      setHasAccess(false);
-      setIsCheckingAccess(false);
-      router.replace("/login");
+    if (!user || !isAdmin) {
       return;
     }
 
-    try {
-      const parsedUser = JSON.parse(storedUser);
-      if (normalizeRole(parsedUser?.role) !== "admin") {
-        setHasAccess(false);
-        router.replace("/");
-        return;
-      }
+    fetchUsers();
+  }, [fetchUsers, isAdmin, user]);
 
-      setHasAccess(true);
-    } catch (parseError) {
-      console.error("Unable to parse stored user:", parseError);
-      setHasAccess(false);
-      setIsCheckingAccess(false);
-      router.replace("/login");
-    } finally {
-      setIsCheckingAccess(false);
-    }
-  }, [normalizeRole, router]);
-
-  useEffect(() => {
-    if (hasAccess) {
-      fetchUsers();
-    }
-  }, [fetchUsers, hasAccess]);
-
-  const openModal = (type, user = null) => {
+  const openModal = (type, currentUser = null) => {
     setModalType(type);
-    setSelectedUser(user);
+    setSelectedUser(currentUser);
+
     if (type === "add") {
+      setFormData({ ...INITIAL_FORM_STATE });
+    } else if (type === "edit" && currentUser) {
       setFormData({
-        username: "",
-        email: "",
+        username: currentUser.username,
+        email: currentUser.email,
         password: "",
-        firstname: "",
-        lastname: "",
-        role: "user",
-        status: "active",
-      });
-    } else if (type === "edit" && user) {
-      setFormData({
-        username: user.username,
-        email: user.email,
-        password: "",
-        firstname: user.firstname || "",
-        lastname: user.lastname || "",
-        role: normalizeRole(user.role),
-        status: normalizeStatus(user.status),
+        firstname: currentUser.firstname || "",
+        lastname: currentUser.lastname || "",
+        role: normalizeRole(currentUser.role),
+        status: normalizeStatus(currentUser.status),
       });
     }
+
     setShowModal(true);
   };
 
@@ -145,8 +115,8 @@ const UserManagePage = () => {
     setShowPassword(false);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
     if (modalType === "add") {
       try {
@@ -166,7 +136,11 @@ const UserManagePage = () => {
         console.error("Register error:", err.response?.data || err.message);
         alert(err.response?.data?.message || "Registration failed.");
       }
-    } else if (modalType === "edit") {
+
+      return;
+    }
+
+    if (modalType === "edit") {
       try {
         if (!selectedUser) {
           return;
@@ -196,6 +170,7 @@ const UserManagePage = () => {
       }
     }
   };
+
   const handleDelete = async () => {
     try {
       if (!selectedUser) {
@@ -204,19 +179,19 @@ const UserManagePage = () => {
 
       await apiClient.delete(`/del/${selectedUser.id}`);
 
-      await fetchUsers(); // โหลดข้อมูลใหม่หลังลบ
-      closeModal(); // ปิด modal
+      await fetchUsers();
+      closeModal();
     } catch (err) {
       console.error("Delete error:", err.response?.data || err.message);
       alert(err.response?.data?.message || "Delete failed.");
     }
   };
 
-  const handleInputChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleInputChange = (event) => {
+    setFormData({ ...formData, [event.target.name]: event.target.value });
   };
 
-  if (isCheckingAccess) {
+  if (!user) {
     return (
       <PageContainer
         meta="Administration"
@@ -232,8 +207,22 @@ const UserManagePage = () => {
     );
   }
 
-  if (!hasAccess) {
-    return null;
+  if (!isAdmin) {
+    return (
+      <PageContainer
+        meta="Administration"
+        title="Access restricted"
+        description="You need administrator permissions to view the user management console."
+        maxWidth="max-w-4xl"
+        className="lg:ml-4"
+      >
+        <div className="rounded-3xl border border-amber-200 bg-amber-50/90 p-6 text-center text-amber-700 shadow-sm">
+          <p className="text-sm leading-relaxed">
+            Please contact an administrator if you believe this is a mistake.
+          </p>
+        </div>
+      </PageContainer>
+    );
   }
 
   if (error) {
@@ -288,32 +277,32 @@ const UserManagePage = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white/60">
-              {users.map((user) => (
-                <tr key={user.id} className="transition hover:bg-slate-50/80">
-                  <td className="whitespace-nowrap px-6 py-4 font-medium text-slate-900">{user.username}</td>
-                  <td className="whitespace-nowrap px-6 py-4 text-slate-600">{user.email}</td>
-                  <td className="whitespace-nowrap px-6 py-4 text-slate-600">{titleCase(user.role)}</td>
+              {users.map((managedUser) => (
+                <tr key={managedUser.id} className="transition hover:bg-slate-50/80">
+                  <td className="whitespace-nowrap px-6 py-4 font-medium text-slate-900">{managedUser.username}</td>
+                  <td className="whitespace-nowrap px-6 py-4 text-slate-600">{managedUser.email}</td>
+                  <td className="whitespace-nowrap px-6 py-4 text-slate-600">{titleCase(managedUser.role)}</td>
                   <td className="px-6 py-4">
                     <span
                       className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                        user.status === "active"
+                        managedUser.status === "active"
                           ? "bg-emerald-100 text-emerald-700"
                           : "bg-red-100 text-red-700"
                       }`}
                     >
-                      {titleCase(user.status)}
+                      {titleCase(managedUser.status)}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm">
                     <div className="flex gap-2">
                       <button
-                        onClick={() => openModal("edit", user)}
+                        onClick={() => openModal("edit", managedUser)}
                         className="inline-flex items-center justify-center rounded-full bg-[#316fb7]/10 p-2 text-[#316fb7] transition hover:bg-[#316fb7]/20"
                       >
                         <Edit size={16} />
                       </button>
                       <button
-                        onClick={() => openModal("delete", user)}
+                        onClick={() => openModal("delete", managedUser)}
                         className="inline-flex items-center justify-center rounded-full bg-red-500/10 p-2 text-red-600 transition hover:bg-red-500/20"
                       >
                         <Trash2 size={16} />
@@ -327,7 +316,6 @@ const UserManagePage = () => {
         </div>
       </div>
 
-      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm sm:p-6">
           <div className="relative w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl">
@@ -427,9 +415,7 @@ const UserManagePage = () => {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <label className="block text-sm font-medium text-slate-600">
-                        {modalType === "edit"
-                          ? "New password (leave blank to keep current)"
-                          : "Password"}
+                        {modalType === "edit" ? "New password (leave blank to keep current)" : "Password"}
                       </label>
                       <div className="relative">
                         <input

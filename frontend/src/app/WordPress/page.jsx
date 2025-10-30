@@ -143,10 +143,10 @@ const cloneSite = (site) => {
   return cloneSites([site])[0];
 };
 
-// NOTE: ปรับค่า WEEKLY_RESET_* เพื่อเปลี่ยนเวลาการรีเซ็ตสถานะเว็บไซต์ที่ยืนยันแล้ว
-const WEEKLY_RESET_DAY = 1; // วันจันทร์ (0 = อาทิตย์, 1 = จันทร์, ...)
-const WEEKLY_RESET_HOUR = 0; // ชั่วโมงที่ต้องการให้รีเซ็ต (24 ชั่วโมง)
-const WEEKLY_RESET_MINUTE = 0; // นาทีที่ต้องการให้รีเซ็ต
+// NOTE: Adjust WEEKLY_RESET_* to change when confirmed WordPress sites are reset
+const WEEKLY_RESET_DAY = 1; // Monday (0 = Sunday, 1 = Monday, ...)
+const WEEKLY_RESET_HOUR = 0; // Hour to perform the reset (24-hour clock)
+const WEEKLY_RESET_MINUTE = 0; // Minute to perform the reset
 
 const WpDashboard = () => {
   const [sites, setSites] = useState([]);
@@ -389,7 +389,7 @@ const WpDashboard = () => {
 
     try {
       for (const site of confirmedSites) {
-        // ใช้ skipReload เพื่อให้โหลดข้อมูลใหม่เพียงครั้งเดียวหลังอัปเดตทั้งหมด
+        // Use skipReload so data is fetched once after all updates complete
         await persistSite(
           site.id,
           { isConfirmed: false },
@@ -571,7 +571,7 @@ const WpDashboard = () => {
     }));
   };
 
-  // ปรับปรุงการ validation ในฟังก์ชัน saveChanges
+  // Additional validation logic for the saveChanges function
   const saveChanges = async () => {
     if (!formData.name || !formData.url) {
       setFormStatus({ type: 'error', message: 'Please enter the website name and URL' });

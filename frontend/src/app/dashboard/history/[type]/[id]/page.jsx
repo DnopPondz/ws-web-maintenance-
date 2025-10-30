@@ -21,7 +21,7 @@ const ChangeDetailsList = ({ details }) => {
   if (!Array.isArray(details) || details.length === 0) {
     return (
       <p className="text-sm text-slate-500">
-        ไม่มีรายละเอียดการเปลี่ยนแปลงเพิ่มเติมสำหรับรอบล่าสุด
+        No additional change details for the latest cycle
       </p>
     );
   }
@@ -32,7 +32,7 @@ const ChangeDetailsList = ({ details }) => {
         const key = detail.field || `${detail.label}-${index}`;
         const previous = detail.previous && detail.previous.length > 0 ? detail.previous : null;
         const current = detail.current && detail.current.length > 0 ? detail.current : null;
-        let value = "อัปเดต";
+        let value = "Updated";
 
         if (previous && current) {
           value = previous === current ? current : `${previous} → ${current}`;
@@ -75,7 +75,7 @@ const VersionDetailsList = ({ details, fallback }) => {
     );
   }
 
-  const fallbackText = fallback && fallback.length > 0 ? fallback : "ไม่มีข้อมูลเวอร์ชัน";
+  const fallbackText = fallback && fallback.length > 0 ? fallback : "No version data";
 
   return <p className="mt-4 text-sm text-slate-500">{fallbackText}</p>;
 };
@@ -115,12 +115,12 @@ const MaintenanceRecordDetailPage = ({ params }) => {
 
     if (wordpressResult.status === "rejected") {
       console.error("Unable to load WordPress sites:", wordpressResult.reason);
-      encounteredErrors.push("ไม่สามารถโหลดข้อมูล WordPress ได้");
+      encounteredErrors.push("Unable to load WordPress data.");
     }
 
     if (supportpalResult.status === "rejected") {
       console.error("Unable to load SupportPal sites:", supportpalResult.reason);
-      encounteredErrors.push("ไม่สามารถโหลดข้อมูล SupportPal ได้");
+      encounteredErrors.push("Unable to load SupportPal data.");
     }
 
     setData(nextData);
@@ -150,10 +150,10 @@ const MaintenanceRecordDetailPage = ({ params }) => {
     [combinedRecords, typeParam, idParam],
   );
 
-  const pageTitle = selectedRecord ? selectedRecord.name : "รายละเอียดระบบ";
+  const pageTitle = selectedRecord ? selectedRecord.name : "System details";
   const pageDescription = selectedRecord
-    ? `ดูข้อมูลการบำรุงรักษาและประวัติการอัปเดตของ ${selectedRecord.type}`
-    : "กำลังค้นหาข้อมูลระบบที่เลือก";
+    ? `Review maintenance history and updates for ${selectedRecord.type}`
+    : "Fetching the selected record";
 
   const lastCheckedLabel = selectedRecord
     ? formatDateTime(selectedRecord.lastCheckedDate)
@@ -161,8 +161,8 @@ const MaintenanceRecordDetailPage = ({ params }) => {
 
   const confirmationLabel = selectedRecord
     ? selectedRecord.isConfirmed
-      ? "ยืนยันการบำรุงรักษาแล้วในรอบปัจจุบัน"
-      : "ยังไม่ได้ยืนยันการบำรุงรักษาในรอบนี้"
+      ? "Confirmed for the current cycle"
+      : "Not yet confirmed this cycle"
     : "";
 
   return (
@@ -173,14 +173,14 @@ const MaintenanceRecordDetailPage = ({ params }) => {
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
           {lastUpdated && (
             <span className="text-sm text-slate-600">
-              อัปเดตล่าสุด {formatDateTime(lastUpdated)}
+              Last updated {formatDateTime(lastUpdated)}
             </span>
           )}
           <Link
             href="/dashboard/history"
             className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white/80 px-5 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
           >
-            ← กลับไปหน้ารายการ
+            ← Back to list
           </Link>
           <button
             type="button"
@@ -188,7 +188,7 @@ const MaintenanceRecordDetailPage = ({ params }) => {
             disabled={isLoading}
             className="inline-flex items-center gap-2 rounded-full border border-[#316fb7] bg-[#316fb7] px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#245c94] disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {isLoading ? "กำลังโหลด..." : "รีเฟรช"}
+            {isLoading ? "Loading..." : "Refresh"}
           </button>
         </div>
       }
@@ -224,10 +224,10 @@ const MaintenanceRecordDetailPage = ({ params }) => {
               </div>
               <div className="text-right text-sm text-slate-600">
                 <p className="font-medium uppercase tracking-wide text-slate-500">
-                  อัปเดตล่าสุด
+                  Last updated
                 </p>
                 <p className="mt-1 text-base font-semibold text-slate-900">
-                  {selectedRecord.lastActivityLabel || "ยังไม่มีประวัติ"}
+                  {selectedRecord.lastActivityLabel || "No history yet"}
                 </p>
               </div>
             </div>
@@ -243,26 +243,26 @@ const MaintenanceRecordDetailPage = ({ params }) => {
             )}
             <dl className="mt-4 grid gap-4 text-sm text-slate-600 sm:grid-cols-2">
               <div>
-                <dt className="font-medium text-slate-500">สถานะระบบ</dt>
-                <dd className="mt-1 text-slate-900">{selectedRecord.status || "ไม่ทราบ"}</dd>
+                <dt className="font-medium text-slate-500">System status</dt>
+                <dd className="mt-1 text-slate-900">{selectedRecord.status || "Unknown"}</dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-500">ตรวจครั้งสุดท้าย</dt>
+                <dt className="font-medium text-slate-500">Last checked</dt>
                 <dd className="mt-1 text-slate-900">{lastCheckedLabel}</dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-500">การยืนยันการบำรุงรักษา</dt>
+                <dt className="font-medium text-slate-500">Maintenance confirmation</dt>
                 <dd className="mt-1 text-slate-900">{confirmationLabel}</dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-500">รหัสอ้างอิง</dt>
+                <dt className="font-medium text-slate-500">Reference ID</dt>
                 <dd className="mt-1 text-slate-900">{selectedRecord.id}</dd>
               </div>
             </dl>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-slate-900">รายละเอียดเวอร์ชัน</h3>
+            <h3 className="text-lg font-semibold text-slate-900">Version details</h3>
             <VersionDetailsList
               details={selectedRecord.versionDetails}
               fallback={selectedRecord.versionLabel || selectedRecord.version}
@@ -271,14 +271,14 @@ const MaintenanceRecordDetailPage = ({ params }) => {
 
           {selectedRecord.changeSummary && (
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-900">สรุปการเปลี่ยนแปลงล่าสุด</h3>
+              <h3 className="text-lg font-semibold text-slate-900">Latest change summary</h3>
               <p className="mt-2 text-sm text-slate-600">{selectedRecord.changeSummary}</p>
             </div>
           )}
 
           {selectedRecord.maintenanceNotes && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-amber-900">หมายเหตุการบำรุงรักษา</h3>
+              <h3 className="text-lg font-semibold text-amber-900">Maintenance notes</h3>
               <p className="mt-2 text-sm text-amber-800 leading-relaxed">
                 {selectedRecord.maintenanceNotes}
               </p>
@@ -286,9 +286,9 @@ const MaintenanceRecordDetailPage = ({ params }) => {
           )}
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-slate-900">รายละเอียดการเปลี่ยนแปลง</h3>
+            <h3 className="text-lg font-semibold text-slate-900">Change log details</h3>
             <p className="mt-2 text-sm text-slate-500">
-              รายการจากการตรวจพบการเปลี่ยนแปลงล่าสุด หากมีการอัปเดตหลายรายการจะเรียงตามลำดับที่ระบบแจ้งไว้
+              Entries reflect the most recent detected changes. If multiple updates occurred, they follow the order reported by the system.
             </p>
             <div className="mt-4">
               <ChangeDetailsList details={selectedRecord.changeDetails} />
@@ -298,7 +298,7 @@ const MaintenanceRecordDetailPage = ({ params }) => {
       ) : (
         <div className="mt-10 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
           <p className="text-sm text-slate-600">
-            ไม่พบข้อมูลระบบที่คุณเลือก อาจถูกลบหรือมีการเปลี่ยนรหัสอ้างอิง
+            The selected record could not be found. It may have been removed or the reference ID may have changed.
           </p>
         </div>
       )}

@@ -22,7 +22,7 @@ export default function RootLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
 
-  // หน้าที่ไม่ต้องการ Sidebar และไม่ต้องการ AuthGuard
+  // Pages that do not require the sidebar or authentication guard
   const noSidebarPages = ['/login', '/register', '/forgot-password'];
   const shouldShowSidebar = !noSidebarPages.includes(pathname);
   const shouldProtect = !noSidebarPages.includes(pathname);
@@ -52,6 +52,37 @@ export default function RootLayout({ children }) {
     }
   }, [isDesktop]);
 
+  const mainClassName = [
+    "transition-all duration-300 w-full flex-1",
+    shouldShowSidebar
+      ? isDesktop
+        ? sidebarOpen
+          ? "lg:ml-64"
+          : "lg:ml-16"
+        : "ml-0"
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const layoutContent = (
+    <>
+      {shouldShowSidebar && (
+        <NavSidebar
+          isDesktop={isDesktop}
+          isOpen={sidebarOpen}
+          setIsOpen={setSidebarOpen}
+        />
+      )}
+
+      <main className={mainClassName}>
+        <PageTransition>
+          <div className="min-h-screen w-full">{children}</div>
+        </PageTransition>
+      </main>
+    </>
+  );
+
   return (
     <html lang="en">
       <head>
@@ -72,50 +103,7 @@ export default function RootLayout({ children }) {
           ${!shouldShowSidebar ? 'overflow-hidden' : ''}
         `}
       >
-        {shouldShowSidebar && (
-          <NavSidebar
-            isDesktop={isDesktop}
-            isOpen={sidebarOpen}
-            setIsOpen={setSidebarOpen}
-          />
-        )}
-
-        {shouldProtect ? (
-          <AuthGuard>
-            <main
-              className={`transition-all duration-300 w-full flex-1 ${
-                shouldShowSidebar
-                  ? isDesktop
-                    ? sidebarOpen
-                      ? 'lg:ml-64'
-                      : 'lg:ml-16'
-                    : 'ml-0'
-                  : ''
-              }`}
-            >
-              <PageTransition>
-                <div className="min-h-screen w-full">{children}</div>
-              </PageTransition>
-            </main>
-          </AuthGuard >
-        ) : (
-          <main
-            className={`transition-all duration-300 w-full flex-1 ${
-              shouldShowSidebar
-                ? isDesktop
-                  ? sidebarOpen
-                    ? 'lg:ml-64'
-                    : 'lg:ml-16'
-                  : 'ml-0'
-                : ''
-            }`}
-          >
-            <PageTransition>
-              <div className="min-h-screen w-full">{children}</div>
-            </PageTransition>
-          </main>
-        )}
-
+        {shouldProtect ? <AuthGuard>{layoutContent}</AuthGuard> : layoutContent}
       </body>
     </html>
   );

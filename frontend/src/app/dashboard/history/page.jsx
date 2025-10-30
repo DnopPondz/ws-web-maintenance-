@@ -110,28 +110,28 @@ const RecordSummaryCard = ({ record }) => {
               <span aria-hidden className="text-base leading-none">
                 •
               </span>
-              มีหมายเหตุ
+              Contains notes
             </span>
           )}
         </div>
         <div className="text-right text-sm text-slate-600">
           <p className="font-medium uppercase tracking-wide text-slate-500">
-            อัปเดตล่าสุด
+            Last updated
           </p>
           <p className="mt-1 text-base font-semibold text-slate-900">
-            {record.lastActivityLabel || "ยังไม่มีประวัติ"}
+            {record.lastActivityLabel || "No history yet"}
           </p>
         </div>
       </div>
 
       <dl className="mt-4 grid gap-4 text-sm text-slate-600 sm:grid-cols-2">
         <div>
-          <dt className="font-medium text-slate-500">เวอร์ชันล่าสุด</dt>
+          <dt className="font-medium text-slate-500">Latest version</dt>
           <dd className="mt-1 text-slate-900">{versionLabel}</dd>
         </div>
         <div>
-          <dt className="font-medium text-slate-500">สถานะระบบ</dt>
-          <dd className="mt-1 text-slate-900">{record.status || "ไม่ทราบ"}</dd>
+          <dt className="font-medium text-slate-500">System status</dt>
+          <dd className="mt-1 text-slate-900">{record.status || "Unknown"}</dd>
         </div>
       </dl>
 
@@ -140,7 +140,7 @@ const RecordSummaryCard = ({ record }) => {
       )}
 
       <div className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-[#316fb7]">
-        ดูรายละเอียด
+        View details
         <span aria-hidden className="transition group-hover:translate-x-0.5">
           →
         </span>
@@ -181,12 +181,12 @@ const MaintenanceHistoryPage = () => {
 
     if (wordpressResult.status === "rejected") {
       console.error("Unable to load WordPress sites:", wordpressResult.reason);
-      encounteredErrors.push("ไม่สามารถโหลดข้อมูล WordPress ได้");
+      encounteredErrors.push("Unable to load WordPress data.");
     }
 
     if (supportpalResult.status === "rejected") {
       console.error("Unable to load SupportPal sites:", supportpalResult.reason);
-      encounteredErrors.push("ไม่สามารถโหลดข้อมูล SupportPal ได้");
+      encounteredErrors.push("Unable to load SupportPal data.");
     }
 
     setData(nextData);
@@ -248,12 +248,12 @@ const MaintenanceHistoryPage = () => {
   return (
     <PageContainer
       title="Maintenance log"
-      description="ตรวจสอบข้อมูลเวอร์ชันและประวัติการอัปเดตของระบบทั้งหมดได้ในหน้าเดียว"
+      description="Review version information and update history for every system in one place."
       actions={
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
           {lastUpdated && (
             <span className="text-sm text-slate-600">
-              อัปเดตล่าสุด {formatDateTime(lastUpdated)}
+              Last updated {formatDateTime(lastUpdated)}
             </span>
           )}
           <button
@@ -262,7 +262,7 @@ const MaintenanceHistoryPage = () => {
             disabled={isLoading}
             className="inline-flex items-center gap-2 rounded-full border border-[#316fb7] bg-white/80 px-5 py-2 text-sm font-semibold text-[#316fb7] shadow-sm transition hover:bg-[#316fb7]/10 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isLoading ? "กำลังโหลด..." : "รีเฟรช"}
+            {isLoading ? "Loading..." : "Refresh"}
           </button>
         </div>
       }
@@ -276,14 +276,14 @@ const MaintenanceHistoryPage = () => {
       <section className="mt-6 grid gap-4 md:grid-cols-3">
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-            รายการทั้งหมด
+            Total records
           </p>
           <p className="mt-2 text-3xl font-bold text-gray-900">{stats.total}</p>
-          <p className="text-sm text-gray-500">จำนวนรายการที่กำลังติดตาม</p>
+          <p className="text-sm text-gray-500">Number of tracked entries</p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-            จำแนกตามระบบ
+            By platform
           </p>
           <ul className="mt-2 space-y-1 text-sm text-gray-600">
             {Object.entries(stats.byType).map(([type, count]) => (
@@ -293,18 +293,18 @@ const MaintenanceHistoryPage = () => {
               </li>
             ))}
             {Object.keys(stats.byType).length === 0 && (
-              <li className="text-gray-400">ยังไม่มีข้อมูล</li>
+              <li className="text-gray-400">No data yet</li>
             )}
           </ul>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-            การอัปเดตล่าสุด
+            Latest confirmation
           </p>
           <p className="mt-2 text-lg font-semibold text-gray-900">
-            {stats.latest ? stats.latest.label : "ยังไม่มีประวัติ"}
+            {stats.latest ? stats.latest.label : "No history yet"}
           </p>
-          <p className="text-sm text-gray-500">ข้อมูลอ้างอิงตามเวลาที่ตรวจพบการเปลี่ยนแปลง</p>
+          <p className="text-sm text-gray-500">Based on when the most recent change was detected</p>
         </div>
       </section>
 
@@ -313,20 +313,20 @@ const MaintenanceHistoryPage = () => {
           <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700" htmlFor="maintenance-search">
-                ค้นหาระบบ
+                Search systems
               </label>
               <input
                 id="maintenance-search"
                 type="search"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="ค้นหาด้วยชื่อระบบ เวอร์ชัน หรือหมายเหตุ"
+                placeholder="Search by system name, version, or note"
                 className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm shadow-sm focus:border-[#316fb7] focus:outline-none focus:ring-2 focus:ring-[#316fb7]/40"
               />
             </div>
             <div className="w-full sm:w-56">
               <label className="block text-sm font-medium text-gray-700" htmlFor="maintenance-type-filter">
-                เลือกระบบ
+                Filter by platform
               </label>
               <select
                 id="maintenance-type-filter"
@@ -343,7 +343,7 @@ const MaintenanceHistoryPage = () => {
             </div>
           </div>
           <div className="text-sm text-gray-500">
-            แสดง {filteredRecords.length} จาก {combinedRecords.length} รายการ
+            Showing {filteredRecords.length} of {combinedRecords.length} records
           </div>
         </div>
 
@@ -358,7 +358,7 @@ const MaintenanceHistoryPage = () => {
           </div>
         ) : filteredRecords.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-10 text-center">
-            <p className="text-sm text-gray-500">ไม่พบข้อมูลที่ตรงกับเงื่อนไขที่เลือก</p>
+            <p className="text-sm text-gray-500">No records match the selected filters</p>
           </div>
         ) : (
           <ul className="grid gap-4 lg:grid-cols-2">

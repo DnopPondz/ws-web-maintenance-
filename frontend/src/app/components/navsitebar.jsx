@@ -4,15 +4,17 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { logoutUser } from "../lib/api";
 import { useRouter } from "next/navigation";
 
+import { useAuth } from "../lib/auth-context";
+
 export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
   const [expandedGroups, setExpandedGroups] = useState(() => ({
     dashboard: true,
     system: !isDesktop,
   }));
-  const [user, setUser] = useState(null);
   const [logoutError, setLogoutError] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
+  const { clearAuth, refreshToken, user } = useAuth();
   const fullName = [user?.firstname, user?.lastname]
     .filter((part) => typeof part === "string" && part.trim().length > 0)
     .join(" ");
@@ -20,37 +22,24 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
   const displayInitial = displayName ? displayName.charAt(0).toUpperCase() : "?";
   const isAdmin = typeof user?.role === "string" && user.role.toLowerCase() === "admin";
 
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error("Unable to parse stored user:", error);
-        localStorage.removeItem("user");
-      }
-    }
-  }, []);
-
   const clearSessionAndRedirect = useCallback(() => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("user");
+    clearAuth();
     router.push("/login");
-  }, [router]);
+  }, [clearAuth, router]);
 
   const handleLogout = async () => {
     setLogoutError(null);
+    const storedRefreshToken =
+      refreshToken || (typeof window !== "undefined" ? localStorage.getItem("refreshToken") : null);
 
-    const refreshToken = localStorage.getItem("refreshToken");
-    if (!refreshToken) {
+    if (!storedRefreshToken) {
       clearSessionAndRedirect();
       return;
     }
 
     setIsLoggingOut(true);
     try {
-      await logoutUser(refreshToken);
+      await logoutUser(storedRefreshToken);
       clearSessionAndRedirect();
     } catch (err) {
       console.error("Logout failed:", err);
