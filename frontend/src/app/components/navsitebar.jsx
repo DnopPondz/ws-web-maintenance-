@@ -98,16 +98,18 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
     setIsOpen((prev) => !prev);
   };
 
-  const toggleButtonClasses =
-    "fixed top-4 left-4 z-50 rounded-full bg-white/10 p-2 text-white shadow-lg backdrop-blur transition-all duration-200 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40";
+  const toggleButtonClasses = [
+    "fixed top-4 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-[#132a4b] text-white shadow-lg transition-all duration-200 lg:hidden",
+    "hover:border-white/40 hover:bg-[#1b3762] focus:outline-none focus:ring-2 focus:ring-white/30",
+  ].join(" ");
 
   const asideClasses = [
-    "fixed top-0 left-0 z-40 flex h-screen flex-col bg-gradient-to-br from-[#1f3d73] via-[#264f96] to-[#17315c] text-white shadow-2xl transition-all duration-300",
+    "fixed top-0 left-0 z-40 flex h-screen flex-col overflow-hidden bg-gradient-to-b from-[#16294d] via-[#102347] to-[#0c1834] text-white shadow-2xl transition-[width,transform] duration-300",
     isDesktop
       ? isOpen
         ? "w-64"
-        : "w-16"
-      : `w-64 ${isOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`
+        : "w-20"
+      : `w-64 ${isOpen ? "translate-x-0" : "-translate-x-full"}`,
   ]
     .filter(Boolean)
     .join(" ");
@@ -121,28 +123,9 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
         aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
         aria-expanded={isOpen}
       >
-        <svg
-          className="w-5 h-5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          {isOpen ? (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          ) : (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 5l7 7-7 7"
-            />
-          )}
-        </svg>
+        <span className="material-icons text-xl">
+          {isOpen ? "chevron_left" : "menu"}
+        </span>
       </button>
       {/* Overlay for mobile */}
       {!isDesktop && isOpen && (
@@ -155,28 +138,43 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
       {/* Sidebar */}
       <aside className={asideClasses}>
         <div className="flex flex-1 flex-col overflow-hidden">
-          <div className="px-5 pt-8">
-            <div
-              className={`flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 p-4 shadow-inner backdrop-blur transition-all duration-300 ${
-                isDesktop && !isOpen ? "flex-col gap-2 text-center" : ""
-              }`}
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 text-lg font-semibold uppercase">
-                {displayInitial}
+          <div className="px-5 pt-8 pb-6">
+            <div className="flex items-center justify-between">
+              <div className={`text-sm font-semibold tracking-wide ${isDesktop && !isOpen ? "sr-only" : "uppercase text-white/70"}`}>
+                Control Panel
               </div>
-              <div
-                className={`min-w-0 text-left text-sm ${
-                  isDesktop && !isOpen ? "opacity-0 h-0 w-0" : "opacity-100"
-                } transition-all duration-300`}
-              >
-                <p className="font-semibold text-white">{displayName}</p>
-                <p className="text-xs text-white/70">{isAdmin ? "Administrator" : "Member"}</p>
+              {isDesktop && (
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  className="hidden h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white/5 text-white transition-colors duration-200 hover:bg-white/10 lg:flex"
+                  aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
+                  aria-expanded={isOpen}
+                >
+                  <span className="material-icons text-base">
+                    {isOpen ? "chevron_left" : "chevron_right"}
+                  </span>
+                </button>
+              )}
+            </div>
+
+            <div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20 text-lg font-semibold uppercase">
+                  {displayInitial}
+                </div>
+                {(isOpen || !isDesktop) && (
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-white">{displayName}</p>
+                    <p className="text-xs text-white/60">{isAdmin ? "Administrator" : "Member"}</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          <nav className="mt-6 flex-1 overflow-y-auto px-4 pb-8" aria-label="Main navigation">
-            <ul className="space-y-3">
+          <nav className="flex-1 overflow-y-auto px-3 pb-8" aria-label="Main navigation">
+            <ul className="space-y-2">
               {navigationItems.map((item) =>
                 item.children ? (
                   <NavGroup
@@ -214,12 +212,12 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
             type="button"
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="w-full rounded-xl bg-white/10 py-2.5 text-sm font-semibold text-red-100 transition-all duration-200 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 text-sm font-semibold text-red-100 transition-colors duration-200 hover:border-white/30 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLoggingOut ? "Logging out..." : "Logout"}
           </button>
           {logoutError && (
-            <div className="mt-3 rounded-xl border border-red-400/30 bg-red-500/20 px-3 py-2 text-xs text-red-100" aria-live="polite">
+            <div className="mt-3 rounded-lg border border-red-400/30 bg-red-500/20 px-3 py-2 text-xs text-red-100" aria-live="polite">
               <p>{logoutError}</p>
               <button
                 type="button"
@@ -246,70 +244,62 @@ function NavLink({
   showLabel,
 }) {
   const shouldShowLabel = typeof showLabel === "boolean" ? showLabel : isOpen;
-  const baseClasses = `group relative flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all duration-200 ${
-    isChild
-      ? "bg-white/5 text-white/80 hover:bg-white/15"
-      : "bg-white/5 text-white hover:bg-white/20"
-  }`;
+  const baseClasses = [
+    "group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150",
+    isChild ? "text-white/80 hover:bg-white/10" : "text-white hover:bg-white/10",
+    shouldShowLabel ? "justify-start gap-3" : "justify-center",
+    isChild && shouldShowLabel ? "pl-8" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <Link href={href} className={baseClasses} onClick={onNavigate}>
+    <Link
+      href={href}
+      className={baseClasses}
+      onClick={onNavigate}
+      title={label}
+      aria-label={!shouldShowLabel ? label : undefined}
+    >
       <span
         className={`material-icons ${
-          isChild ? "text-base text-white/50" : "text-xl"
-        } transition-all duration-300 ${shouldShowLabel ? "" : "mx-auto"}`}
+          isChild ? "text-base text-white/60" : "text-lg"
+        } transition-transform duration-200`}
         aria-hidden
       >
-        {isChild ? "arrow_forward_ios" : icon}
+        {isChild ? "chevron_right" : icon}
       </span>
-      <span
-        className={`whitespace-nowrap text-left transition-all duration-300 ${
-          shouldShowLabel
-            ? "opacity-100"
-            : "pointer-events-none w-0 translate-x-2 overflow-hidden opacity-0"
-        }`}
-      >
-        {label}
-      </span>
+      {shouldShowLabel && <span className="flex-1 truncate text-left">{label}</span>}
     </Link>
   );
 }
 
 function NavGroup({ item, isOpen, isDesktop, isExpanded, onToggle, onNavigate }) {
-  const shouldShowChildren = isDesktop ? isExpanded : true;
+  const shouldShowChildren = isDesktop ? isExpanded && isOpen : isOpen || !isDesktop;
 
   return (
     <li>
-      <div className="rounded-3xl bg-white/5 p-2 shadow-inner">
+      <div className="rounded-xl border border-white/10 bg-white/5 p-2">
         <button
           type="button"
           onClick={isDesktop ? onToggle : undefined}
           aria-expanded={isDesktop ? isExpanded : true}
-          className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/30 ${
+          aria-label={isDesktop && !isOpen ? item.label : undefined}
+          title={item.label}
+          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 ${
             isDesktop && !isOpen ? "justify-center" : "justify-between"
           }`}
         >
           <span className="flex items-center gap-3">
-            <span
-              className={`material-icons text-xl transition-all duration-300 ${
-                isDesktop && !isOpen ? "" : ""
-              }`}
-              aria-hidden
-            >
+            <span className="material-icons text-lg" aria-hidden>
               {item.icon}
             </span>
-            <span
-              className={`whitespace-nowrap transition-all duration-300 ${
-                isOpen ? "opacity-100" : "opacity-0 -translate-x-2"
-              } ${isDesktop && !isOpen ? "pointer-events-none hidden" : ""}`}
-            >
-              {item.label}
-            </span>
+            {(isOpen || !isDesktop) && <span className="truncate">{item.label}</span>}
           </span>
           {isDesktop && isOpen && (
             <span
               className={`material-icons text-base transition-transform duration-200 ${
-                isExpanded ? "rotate-180" : ""
+                isExpanded ? "-rotate-180" : ""
               }`}
             >
               expand_more
@@ -318,7 +308,7 @@ function NavGroup({ item, isOpen, isDesktop, isExpanded, onToggle, onNavigate })
         </button>
 
         {shouldShowChildren && (
-          <div className="mt-2 space-y-2 rounded-2xl bg-white/5 p-3">
+          <div className="mt-2 space-y-1">
             {item.children.map((child) => (
               <NavLink
                 key={child.id}
