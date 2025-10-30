@@ -68,6 +68,15 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
     }));
   }, [isDesktop]);
 
+  useEffect(() => {
+    if (isDesktop && !isOpen) {
+      setExpandedGroups((previous) => ({
+        ...previous,
+        system: false,
+      }));
+    }
+  }, [isDesktop, isOpen]);
+
   const handleNavigate = useCallback(() => {
     if (!isDesktop) {
       setIsOpen(false);
@@ -292,7 +301,7 @@ function NavGroup({ item, isOpen, isDesktop, isExpanded, onToggle, onNavigate })
 
   const showParentLabel = !isCollapsedDesktop && (isOpen || !isDesktop);
 
-  const collapsedChildren = isCollapsedDesktop
+  const collapsedChildren = isCollapsedDesktop && isExpanded
     ? item.children.map((child) => (
         <NavLink
           key={child.id}
@@ -323,14 +332,20 @@ function NavGroup({ item, isOpen, isDesktop, isExpanded, onToggle, onNavigate })
 
   return (
     <li>
-      <div className="rounded-xl border border-white/10 bg-white/5 p-2">
+      <div
+        className={`rounded-xl border border-white/10 bg-white/5 p-2 transition-all duration-200 ${
+          isCollapsedDesktop && isExpanded ? "pb-3" : ""
+        }`}
+      >
         <button
           type="button"
           onClick={isDesktop ? onToggle : undefined}
           aria-expanded={isDesktop ? isExpanded : true}
           aria-label={isCollapsedDesktop ? item.label : undefined}
           title={item.label}
-          className={parentButtonClasses}
+          className={`${parentButtonClasses} ${
+            isCollapsedDesktop && isExpanded ? "bg-white/10" : ""
+          }`}
         >
           <span className="flex items-center gap-3">
             <span className="material-icons text-lg" aria-hidden>
@@ -338,10 +353,16 @@ function NavGroup({ item, isOpen, isDesktop, isExpanded, onToggle, onNavigate })
             </span>
             {showParentLabel && <span className="truncate">{item.label}</span>}
           </span>
-          {!isCollapsedDesktop && isDesktop && isOpen && (
+          {isDesktop && isOpen && (
             <span
               className={`material-icons text-base transition-transform duration-200 ${
-                isExpanded ? "-rotate-180" : ""
+                isCollapsedDesktop
+                  ? isExpanded
+                    ? "rotate-45"
+                    : ""
+                  : isExpanded
+                  ? "-rotate-180"
+                  : ""
               }`}
             >
               expand_more
