@@ -153,6 +153,67 @@ export const normaliseWordpressSites = (sites = []) =>
     };
   });
 
+const SUPPORTPAL_VERSION_LABELS = {
+  supportpal: "SupportPal",
+  php: "PHP",
+  mysql: "MySQL",
+  mariadb: "MariaDB",
+  nginx: "Nginx",
+  apache: "Apache",
+  os: "OS",
+  redis: "Redis",
+  elasticsearch: "Elasticsearch",
+  node: "Node.js",
+  composer: "Composer",
+};
+
+const normaliseSupportpalVersion = (site) => {
+  const labels = SUPPORTPAL_VERSION_LABELS;
+  const seenKeys = new Set();
+  const entries = [];
+
+  const addEntry = (key, label, value) => {
+    if (value === undefined || value === null || seenKeys.has(key)) {
+      return;
+    }
+
+    const trimmed = typeof value === "string" ? value.trim() : String(value).trim();
+
+    if (!trimmed) {
+      return;
+    }
+
+    seenKeys.add(key);
+    entries.push(`${label} ${trimmed}`);
+  };
+
+  if (site?.versions && typeof site.versions === "object") {
+    Object.entries(site.versions).forEach(([rawKey, value]) => {
+      const key = String(rawKey).trim().toLowerCase();
+      const label = labels[key] || key.charAt(0).toUpperCase() + key.slice(1);
+
+      addEntry(key, label, value);
+    });
+  }
+
+  const directVersionValue =
+    site?.supportpalVersion ?? site?.supportpal_version ?? site?.version;
+
+  if (
+    !seenKeys.has("supportpal") &&
+    directVersionValue !== undefined &&
+    directVersionValue !== null
+  ) {
+    addEntry("supportpal", labels.supportpal || "SupportPal", directVersionValue);
+  }
+
+  if (entries.length === 0) {
+    return "";
+  }
+
+  return entries.join(" • ");
+};
+
 export const normaliseSupportpalSites = (sites = []) =>
   sites.map((site, index) => {
     const lastChecked = site?.lastChecked ?? site?.last_checked ?? null;
@@ -178,11 +239,7 @@ export const normaliseSupportpalSites = (sites = []) =>
         site?.lastChangeSummary ?? site?.changeSummary ?? "",
       changeDetails: normaliseChangeDetails(changeDetailsSource),
       changeDetectedAt: changeDetectedAtDate,
-      version:
-        site?.supportpalVersion ??
-        site?.supportpal_version ??
-        site?.version ??
-        "",
+      version: normaliseSupportpalVersion(site),
     };
   });
 
@@ -190,13 +247,24 @@ export const buildMaintenanceRecords = (wordpressSites, supportpalSites) => {
   const enhanceRecord = (record) => {
     const lastActivity = record.changeDetectedAt || record.lastCheckedDate;
 
+    const versionText =
+      typeof record.version === "string" ? record.version.trim() : "";
+
+    let versionLabel = "N/A";
+
+    if (versionText.length > 0) {
+      if (record.type === "WordPress" && !/^wordpress/i.test(versionText)) {
+        versionLabel = `WordPress ${versionText}`;
+      } else {
+        versionLabel = versionText;
+      }
+    }
+
     return {
       ...record,
       lastActivity,
       lastActivityLabel: formatDateTime(lastActivity),
-      versionLabel: record.version && record.version.trim().length > 0
-        ? record.version
-        : "N/A",
+      versionLabel,
     };
   };
 
