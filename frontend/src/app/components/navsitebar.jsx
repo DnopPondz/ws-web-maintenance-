@@ -83,8 +83,8 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
         icon: "grid_view",
         label: "System",
         children: [
-          { id: "wordpress", href: "/WordPress", label: "WordPress" },
-          { id: "supportpal", href: "/Supportpal", label: "SupportPal" },
+          { id: "wordpress", href: "/WordPress", icon: "language", label: "WordPress" },
+          { id: "supportpal", href: "/Supportpal", icon: "support_agent", label: "SupportPal" },
         ],
       },
       isAdmin
@@ -244,6 +244,7 @@ function NavLink({
   showLabel,
 }) {
   const shouldShowLabel = typeof showLabel === "boolean" ? showLabel : isOpen;
+  const iconName = icon || (isChild ? "chevron_right" : "radio_button_unchecked");
   const baseClasses = [
     "group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150",
     isChild ? "text-white/80 hover:bg-white/10" : "text-white hover:bg-white/10",
@@ -263,11 +264,11 @@ function NavLink({
     >
       <span
         className={`material-icons ${
-          isChild ? "text-base text-white/60" : "text-lg"
+          isChild && shouldShowLabel ? "text-base text-white/60" : "text-lg"
         } transition-transform duration-200`}
         aria-hidden
       >
-        {isChild ? "chevron_right" : icon}
+        {iconName}
       </span>
       {shouldShowLabel && <span className="flex-1 truncate text-left">{label}</span>}
     </Link>
@@ -275,7 +276,30 @@ function NavLink({
 }
 
 function NavGroup({ item, isOpen, isDesktop, isExpanded, onToggle, onNavigate }) {
-  const shouldShowChildren = isDesktop ? isExpanded && isOpen : isOpen || !isDesktop;
+  const isCollapsedDesktop = isDesktop && !isOpen;
+  const shouldShowChildren =
+    isCollapsedDesktop || (isDesktop ? isExpanded && isOpen : true);
+
+  const childrenMarkup = shouldShowChildren ? (
+    <div
+      className={`space-y-1 ${
+        isCollapsedDesktop ? "mt-3" : "mt-2"
+      }`}
+    >
+      {item.children.map((child) => (
+        <NavLink
+          key={child.id}
+          href={child.href}
+          icon={child.icon}
+          label={child.label}
+          isOpen={isCollapsedDesktop ? false : isOpen}
+          onNavigate={onNavigate}
+          isChild={!isCollapsedDesktop}
+          showLabel={isCollapsedDesktop ? false : isOpen || !isDesktop}
+        />
+      ))}
+    </div>
+  ) : null;
 
   return (
     <li>
@@ -307,22 +331,9 @@ function NavGroup({ item, isOpen, isDesktop, isExpanded, onToggle, onNavigate })
           )}
         </button>
 
-        {shouldShowChildren && (
-          <div className="mt-2 space-y-1">
-            {item.children.map((child) => (
-              <NavLink
-                key={child.id}
-                href={child.href}
-                label={child.label}
-                isOpen={isOpen}
-                onNavigate={onNavigate}
-                isChild
-                showLabel={isOpen || !isDesktop}
-              />
-            ))}
-          </div>
-        )}
+        {!isCollapsedDesktop && childrenMarkup}
       </div>
+      {isCollapsedDesktop && childrenMarkup}
     </li>
   );
 }
