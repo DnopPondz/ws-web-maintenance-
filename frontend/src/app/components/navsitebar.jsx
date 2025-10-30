@@ -5,7 +5,10 @@ import { logoutUser } from "../lib/api";
 import { useRouter } from "next/navigation";
 
 export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
-  const [expandedGroups, setExpandedGroups] = useState(() => ({ system: !isDesktop }));
+  const [expandedGroups, setExpandedGroups] = useState(() => ({
+    dashboard: true,
+    system: !isDesktop,
+  }));
   const [user, setUser] = useState(null);
   const [logoutError, setLogoutError] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -64,6 +67,7 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
   useEffect(() => {
     setExpandedGroups((previous) => ({
       ...previous,
+      dashboard: true,
       system: !isDesktop || previous.system,
     }));
   }, [isDesktop]);
@@ -72,7 +76,13 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
     if (isDesktop && !isOpen) {
       setExpandedGroups((previous) => ({
         ...previous,
+        dashboard: false,
         system: false,
+      }));
+    } else if (isDesktop && isOpen) {
+      setExpandedGroups((previous) => ({
+        ...previous,
+        dashboard: true,
       }));
     }
   }, [isDesktop, isOpen]);
@@ -83,25 +93,56 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
     }
   }, [isDesktop, setIsOpen]);
 
-  const navigationItems = useMemo(
-    () => [
+  const navigationItems = useMemo(() => {
+    const items = [
       { id: "home", href: "/", icon: "home", label: "Home" },
-      { id: "dashboard", href: "/dashboard", icon: "insights", label: "Dashboard" },
       {
+        id: "dashboard",
+        icon: "insights",
+        label: "Dashboard",
+        children: [
+          {
+            id: "dashboard-overview",
+            href: "/dashboard",
+            icon: "space_dashboard",
+            label: "Overview",
+          },
+          {
+            id: "dashboard-history",
+            href: "/dashboard/history",
+            icon: "history",
+            label: "Maintenance log",
+          },
+        ],
+      },
+    ];
+
+    if (isAdmin) {
+      items.push({
         id: "system",
         icon: "grid_view",
         label: "System",
         children: [
-          { id: "wordpress", href: "/WordPress", icon: "language", label: "WordPress" },
-          { id: "supportpal", href: "/Supportpal", icon: "support_agent", label: "SupportPal" },
+          {
+            id: "wordpress",
+            href: "/WordPress",
+            icon: "language",
+            label: "WordPress",
+          },
+          {
+            id: "supportpal",
+            href: "/Supportpal",
+            icon: "support_agent",
+            label: "SupportPal",
+          },
         ],
-      },
-      isAdmin
-        ? { id: "admin", href: "/admin", icon: "group", label: "Admin" }
-        : null,
-    ].filter(Boolean),
-    [isAdmin],
-  );
+      });
+
+      items.push({ id: "admin", href: "/admin", icon: "group", label: "Admin" });
+    }
+
+    return items;
+  }, [isAdmin]);
 
   const toggleSidebar = () => {
     setIsOpen((prev) => !prev);
