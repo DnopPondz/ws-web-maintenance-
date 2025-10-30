@@ -42,7 +42,7 @@ const Home = () => {
   return (
     <PageContainer
       meta="Maintenance workspace"
-      title={`Welcome back${safeGreeting ? `, ${safeGreeting}` : ""}!`}`
+      title={`Welcome back${safeGreeting ? ", " + safeGreeting : ""}!`}
       description="Choose the platform you would like to maintain. Everything shares the same visual language so you can move between systems with confidence."
       actions={(
         <div className="rounded-2xl bg-white/70 px-6 py-4 text-sm text-slate-600 shadow-sm backdrop-blur">
