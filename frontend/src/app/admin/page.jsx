@@ -272,54 +272,56 @@ const UserManagePage = () => {
       )}
       maxWidth="max-w-6xl"
     >
-      <div className="overflow-hidden rounded-3xl border border-white/60 bg-white/80 shadow">
-        <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-          <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-6 py-3">Username</th>
-              <th className="px-6 py-3">Email</th>
-              <th className="px-6 py-3">Role</th>
-              <th className="px-6 py-3">Status</th>
-              <th className="px-6 py-3">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 bg-white/60">
-            {users.map((user) => (
-              <tr key={user.id} className="transition hover:bg-slate-50/80">
-                <td className="px-6 py-4 font-medium text-slate-900">{user.username}</td>
-                <td className="px-6 py-4 text-slate-600">{user.email}</td>
-                <td className="px-6 py-4 text-slate-600">{titleCase(user.role)}</td>
-                <td className="px-6 py-4">
-                  <span
-                    className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${
-                      user.status === "active"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-red-100 text-red-700"
-                    }`}
-                  >
-                    {titleCase(user.status)}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => openModal("edit", user)}
-                      className="inline-flex items-center justify-center rounded-full bg-[#316fb7]/10 p-2 text-[#316fb7] transition hover:bg-[#316fb7]/20"
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button
-                      onClick={() => openModal("delete", user)}
-                      className="inline-flex items-center justify-center rounded-full bg-red-500/10 p-2 text-red-600 transition hover:bg-red-500/20"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
+      <div className="rounded-3xl border border-white/60 bg-white/80 shadow">
+        <div className="w-full overflow-x-auto rounded-3xl">
+          <table className="min-w-[720px] divide-y divide-slate-200 text-left text-sm md:min-w-full">
+            <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-6 py-3">Username</th>
+                <th className="px-6 py-3">Email</th>
+                <th className="px-6 py-3">Role</th>
+                <th className="px-6 py-3">Status</th>
+                <th className="px-6 py-3">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white/60">
+              {users.map((user) => (
+                <tr key={user.id} className="transition hover:bg-slate-50/80">
+                  <td className="whitespace-nowrap px-6 py-4 font-medium text-slate-900">{user.username}</td>
+                  <td className="whitespace-nowrap px-6 py-4 text-slate-600">{user.email}</td>
+                  <td className="whitespace-nowrap px-6 py-4 text-slate-600">{titleCase(user.role)}</td>
+                  <td className="px-6 py-4">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        user.status === "active"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {titleCase(user.status)}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openModal("edit", user)}
+                        className="inline-flex items-center justify-center rounded-full bg-[#316fb7]/10 p-2 text-[#316fb7] transition hover:bg-[#316fb7]/20"
+                      >
+                        <Edit size={16} />
+                      </button>
+                      <button
+                        onClick={() => openModal("delete", user)}
+                        className="inline-flex items-center justify-center rounded-full bg-red-500/10 p-2 text-red-600 transition hover:bg-red-500/20"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Modal */}

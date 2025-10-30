@@ -4,13 +4,18 @@ import { useEffect, useState, useCallback } from 'react';
 import { logoutUser } from '../lib/api';
 import { useRouter } from 'next/navigation';
 
-export default function NavSidebar({ isOpen, setIsOpen }) {
+export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [logoutError, setLogoutError] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
   const isAdmin = typeof user?.role === 'string' && user.role.toLowerCase() === 'admin';
+  const fullName = [user?.firstname, user?.lastname]
+    .filter((part) => typeof part === 'string' && part.trim().length > 0)
+    .join(' ');
+  const displayName = fullName || user?.username || user?.email || 'User';
+  const displayInitial = displayName ? displayName.charAt(0).toUpperCase() : '?';
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -56,13 +61,35 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
     clearSessionAndRedirect();
   };
 
+  useEffect(() => {
+    if (!isOpen) {
+      setIsDashboardOpen(false);
+    }
+  }, [isOpen]);
+
+  const handleNavigate = useCallback(() => {
+    if (!isDesktop) {
+      setIsOpen(false);
+    }
+  }, [isDesktop, setIsOpen]);
+
+  const toggleSidebar = () => {
+    setIsOpen((prev) => !prev);
+  };
+
+  const toggleButtonClasses = [
+    'fixed top-4 z-50 bg-[#316fb7] hover:bg-[#7a98bb] text-white p-3 rounded-md focus:outline-none focus:ring-0 transition-colors duration-200',
+    isDesktop ? (isOpen ? 'left-60' : 'left-6') : 'left-4'
+  ].join(' ');
+
   return (
     <>
       {/* Toggle Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-4 left-4 z-50 bg-[#316fb7] hover:bg-[#7a98bb] text-white p-3 rounded-md focus:outline-none focus:ring-0 transition-colors duration-200"
+        onClick={toggleSidebar}
+        className={toggleButtonClasses}
         aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
+        aria-expanded={isOpen}
       >
         <svg
           className="w-5 h-5"
@@ -88,7 +115,7 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
         </svg>
       </button>
       {/* Overlay for mobile */}
-      {isOpen && (
+      {!isDesktop && isOpen && (
         <div
           className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm"
           onClick={() => setIsOpen(false)}
@@ -97,45 +124,48 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-screen bg-gradient-to-br from-[#316fb7] via-[#2a5fa0] to-[#1f4d85] text-white flex flex-col shadow-xl transition-all duration-300 z-40 ${
-          isOpen ? "w-64" : "w-16"
-        }`}
+        className={`fixed top-0 left-0 h-screen bg-gradient-to-br from-[#316fb7] via-[#2a5fa0] to-[#1f4d85] text-white flex flex-col shadow-xl transition-all duration-300 z-40 transform ${
+          isDesktop
+            ? isOpen
+              ? 'w-64'
+              : 'w-16'
+            : `w-64 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`
+        } lg:translate-x-0`}
       >
         {/* Header */}
-        <div className="p-4 ml-10 mt-2 ">
-          <h2
-            className={`text-xl font-bold whitespace-nowrap overflow-hidden transition-all duration-300 ${
-              isOpen ? "opacity-100 ml-2" : "opacity-0 w-0"
-            }`}
-          >
-            Admin Panel
-          </h2>
+        <div className={`px-4 pt-6 ${isDesktop && !isOpen ? 'hidden lg:block lg:px-0' : ''}`}>
+          {(!isDesktop || isOpen) && (
+            <h2 className="text-xl font-bold text-white">Admin Panel</h2>
+          )}
         </div>
 
-         <div className="p-2 ml-5">
-  {user ? (
-    <span
-      className="text-sm bg-[#5c8bc0] rounded-4xl hover:bg-[#688db8] cursor-pointer px-3 py-1 block w-fit transition-all duration-300"
-      title={`${user.firstname} ${user.lastname}`} // Tooltip ตอน hover
-    >
-      {isOpen
-        ? `${user.firstname} ${user.lastname}`
-        : user.firstname.charAt(0)}
-    </span>
-  ) : (
-    <span className="text-sm">Not logged in</span>
-  )}
-</div>
+        <div className="px-4 pt-4">
+          {user ? (
+            <span
+              className={`text-sm text-white bg-[#5c8bc0] hover:bg-[#688db8] cursor-pointer transition-all duration-300 ${
+                isDesktop && !isOpen
+                  ? 'flex h-10 w-10 items-center justify-center rounded-full'
+                  : 'block w-fit rounded-full px-3 py-1'
+              }`}
+              title={displayName}
+            >
+              {isDesktop && !isOpen ? displayInitial : displayName}
+            </span>
+          ) : (
+            <span className="text-sm text-white/80">Not logged in</span>
+          )}
+        </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4">
+        <nav className="flex-1 overflow-y-auto p-4 pb-6" aria-label="Main navigation">
           <div className="space-y-2">
-            <NavLink href="/" icon="home" label="Home" isOpen={isOpen} />
+            <NavLink href="/" icon="home" label="Home" isOpen={isOpen} onNavigate={handleNavigate} />
             <NavLink
               href="/dashboard"
               icon="insights"
               label="Dashboard"
               isOpen={isOpen}
+              onNavigate={handleNavigate}
             />
 
             {/* Dashboard with Submenu */}
@@ -182,13 +212,15 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
                 >
                   <Link
                     href="/WordPress"
-                    className="block p-2 text-sm text-gray-300 hover:text-white hover:bg-[#7a98bb] rounded transition-colors duration-200"
+                    onClick={handleNavigate}
+                    className="block rounded p-2 text-sm text-gray-300 transition-colors duration-200 hover:bg-[#7a98bb] hover:text-white"
                   >
                     WordPress
                   </Link>
                   <Link
                     href="/Supportpal"
-                    className="block p-2 text-sm text-gray-300 hover:text-white hover:bg-[#7a98bb] rounded transition-colors duration-200"
+                    onClick={handleNavigate}
+                    className="block rounded p-2 text-sm text-gray-300 transition-colors duration-200 hover:bg-[#7a98bb] hover:text-white"
                   >
                     SupportPal
                   </Link>
@@ -202,6 +234,7 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
                 icon="people"
                 label="Admin"
                 isOpen={isOpen}
+                onNavigate={handleNavigate}
               />
             )}
           </div>
@@ -236,13 +269,13 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
 }
 
 // Extracted NavLink component for better maintainability
-function NavLink({ href, icon, label, isOpen, className = "" }) {
+function NavLink({ href, icon, label, isOpen, onNavigate, className = "" }) {
   const baseClasses =
     "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 hover:bg-white/15";
   const classes = className ? `${baseClasses} ${className}` : baseClasses;
 
   return (
-    <Link href={href} className={classes}>
+    <Link href={href} className={classes} onClick={onNavigate}>
       <span
         className={`material-icons text-xl transition-all duration-300 ${
           isOpen ? "mr-3" : "mx-auto"

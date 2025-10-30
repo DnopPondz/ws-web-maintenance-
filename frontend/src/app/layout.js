@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -17,13 +17,52 @@ const geistMono = Geist_Mono({
 });
 
 export default function RootLayout({ children }) {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    return window.innerWidth >= 1024;
+  });
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    return window.innerWidth >= 1024;
+  });
   const pathname = usePathname();
 
   // หน้าที่ไม่ต้องการ Sidebar และไม่ต้องการ AuthGuard
   const noSidebarPages = ['/login', '/register', '/forgot-password'];
   const shouldShowSidebar = !noSidebarPages.includes(pathname);
   const shouldProtect = !noSidebarPages.includes(pathname);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window === 'undefined') {
+        return;
+      }
+
+      const desktop = window.innerWidth >= 1024;
+      setIsDesktop(desktop);
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isDesktop) {
+      setSidebarOpen(true);
+    } else {
+      setSidebarOpen(false);
+    }
+  }, [isDesktop]);
 
   return (
     <html lang="en">
@@ -40,12 +79,17 @@ export default function RootLayout({ children }) {
           antialiased
           bg-slate-100
           text-slate-900
-          ${shouldShowSidebar ? 'flex' : ''}
+          min-h-screen
+          ${shouldShowSidebar ? 'lg:flex' : ''}
           ${!shouldShowSidebar ? 'overflow-hidden' : ''}
         `}
       >
         {shouldShowSidebar && (
-          <NavSidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
+          <NavSidebar
+            isDesktop={isDesktop}
+            isOpen={sidebarOpen}
+            setIsOpen={setSidebarOpen}
+          />
         )}
 
         {shouldProtect ? (
@@ -53,7 +97,11 @@ export default function RootLayout({ children }) {
             <main
               className={`transition-all duration-300 w-full flex-1 ${
                 shouldShowSidebar
-                  ? (sidebarOpen ? 'ml-64' : 'ml-16')
+                  ? isDesktop
+                    ? sidebarOpen
+                      ? 'lg:ml-64'
+                      : 'lg:ml-16'
+                    : 'ml-0'
                   : ''
               }`}
             >
@@ -64,7 +112,11 @@ export default function RootLayout({ children }) {
           <main
             className={`transition-all duration-300 w-full flex-1 ${
               shouldShowSidebar
-                ? (sidebarOpen ? 'ml-64' : 'ml-16')
+                ? isDesktop
+                  ? sidebarOpen
+                    ? 'lg:ml-64'
+                    : 'lg:ml-16'
+                  : 'ml-0'
                 : ''
             }`}
           >
