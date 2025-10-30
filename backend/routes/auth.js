@@ -7,6 +7,51 @@ import User from '../models/User.js';
 const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-change-this';
+const ALLOWED_ROLES = new Set(['admin', 'user']);
+const ALLOWED_STATUSES = new Set(['active', 'suspended']);
+
+const normalizeRole = (value) => {
+  if (typeof value !== 'string') {
+    return 'user';
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return ALLOWED_ROLES.has(normalized) ? normalized : 'user';
+};
+
+const normalizeStatus = (value) => {
+  if (typeof value !== 'string') {
+    return 'active';
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'inactive') {
+    return 'suspended';
+  }
+
+  return ALLOWED_STATUSES.has(normalized) ? normalized : 'active';
+};
+
+export const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ message: 'Access token required.' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({
+        message: 'Invalid or expired token.',
+        error: err.message,
+      });
+    }
+
+    req.user = decoded;
+    next();
+  });
+};
 
 const sanitizeUser = (user) => {
   if (!user) {
@@ -30,8 +75,12 @@ const toSequence = (id) => {
 };
 
 // Register API
-router.post('/register', async (req, res) => {
-  const { username, email, password, firstname, lastname, role } = req.body;
+router.post('/register', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Access denied. Admins only.' });
+  }
+
+  const { username, email, password, firstname, lastname, role, status } = req.body;
 
   if (!username || !email || !password) {
     return res.status(400).json({ message: 'Username, email, and password are required.' });
@@ -58,8 +107,8 @@ router.post('/register', async (req, res) => {
       password: hashedPassword,
       firstname: firstname || '',
       lastname: lastname || '',
-      role: role || 'user',
-      status: 'active',
+      role: normalizeRole(role),
+      status: normalizeStatus(status),
     });
 
     res.status(201).json({ message: 'User registered successfully', id: user.toJSON().id });
@@ -70,19 +119,51 @@ router.post('/register', async (req, res) => {
 });
 
 // edit user data
-router.put('/edit', async (req, res) => {
-  const { id, username, email, firstname, lastname, role, status } = req.body;
+router.put('/edit', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Access denied. Admins only.' });
+  }
+
+  const { id, username, email, firstname, lastname, role, status, password } = req.body;
 
   const sequence = toSequence(id);
   if (!sequence) {
     return res.status(400).json({ message: 'User ID is required' });
   }
 
-  const updatePayload = Object.fromEntries(
-    Object.entries({ username, email, firstname, lastname, role, status }).filter(([, value]) =>
-      value !== undefined
-    )
-  );
+  const updatePayload = {};
+
+  if (username !== undefined) {
+    updatePayload.username = username;
+  }
+
+  if (email !== undefined) {
+    updatePayload.email = email;
+  }
+
+  if (firstname !== undefined) {
+    updatePayload.firstname = firstname;
+  }
+
+  if (lastname !== undefined) {
+    updatePayload.lastname = lastname;
+  }
+
+  if (role !== undefined) {
+    updatePayload.role = normalizeRole(role);
+  }
+
+  if (status !== undefined) {
+    updatePayload.status = normalizeStatus(status);
+  }
+
+  if (password && typeof password === 'string' && password.trim()) {
+    updatePayload.password = await bcrypt.hash(password, 10);
+  }
+
+  if (Object.keys(updatePayload).length === 0) {
+    return res.status(400).json({ message: 'No data provided to update.' });
+  }
 
   try {
     const updatedUser = await User.findOneAndUpdate(
@@ -125,6 +206,10 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid username or password.' });
     }
 
+    if (normalizeStatus(user.status) !== 'active') {
+      return res.status(403).json({ message: 'User account is suspended.' });
+    }
+
     const userId = User.formatId(user.sequence);
 
     const tokenPayload = {
@@ -156,28 +241,6 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ message: 'Login failed.', error: err.message });
   }
 });
-
-// Middleware สำหรับตรวจสอบ JWT Token
-export const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Access token required.' });
-  }
-
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) {
-      return res.status(403).json({
-        message: 'Invalid or expired token.',
-        error: err.message,
-      });
-    }
-
-    req.user = decoded;
-    next();
-  });
-};
 
 // DELETE User
 router.delete('/del/:id', authenticateToken, async (req, res) => {

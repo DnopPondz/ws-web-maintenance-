@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import axios from "axios";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, Edit, Trash2, Eye, EyeOff } from "lucide-react";
 import PageContainer from "../components/PageContainer";
+import { apiClient } from "../lib/api";
 
 
 const UserManagePage = () => {
   const [users, setUsers] = useState([]);
   const [error, setError] = useState("");
+  const [isCheckingAccess, setIsCheckingAccess] = useState(true);
+  const [hasAccess, setHasAccess] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState("add");
   const [selectedUser, setSelectedUser] = useState(null);
@@ -19,27 +22,95 @@ const UserManagePage = () => {
     password: "",
     firstname: "",
     lastname: "",
-    role: "User",
-    status: "Active",
+    role: "user",
+    status: "active",
   });
+  const router = useRouter();
 
-  const fetchUsers = async () => {
-    try {
-      const token = localStorage.getItem("accessToken");
-      const response = await axios.get("/users", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      setUsers(response.data.users);
-    } catch (err) {
-      setError(err.response?.data?.message || "Error fetching users");
+  const normalizeRole = useCallback((role) => {
+    if (typeof role !== "string") {
+      return "user";
     }
+
+    const normalized = role.trim().toLowerCase();
+    return ["admin", "user"].includes(normalized) ? normalized : "user";
+  }, []);
+
+  const normalizeStatus = useCallback((status) => {
+    if (typeof status !== "string") {
+      return "active";
+    }
+
+    const normalized = status.trim().toLowerCase();
+    if (normalized === "inactive") {
+      return "suspended";
+    }
+
+    return ["active", "suspended"].includes(normalized) ? normalized : "active";
+  }, []);
+
+  const titleCase = (value = "") => {
+    if (!value) {
+      return "";
+    }
+
+    return value.charAt(0).toUpperCase() + value.slice(1);
   };
 
+  const fetchUsers = useCallback(async () => {
+    try {
+      setError("");
+      const response = await apiClient.get("/users");
+      const mappedUsers = Array.isArray(response.data?.users)
+        ? response.data.users.map((user) => ({
+            ...user,
+            role: normalizeRole(user.role),
+            status: normalizeStatus(user.status),
+          }))
+        : [];
+      setUsers(mappedUsers);
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ||
+        (err instanceof Error ? err.message : "Error fetching users");
+      setError(message);
+    }
+  }, [normalizeRole, normalizeStatus]);
+
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    const storedUser = localStorage.getItem("user");
+
+    if (!storedUser) {
+      setHasAccess(false);
+      setIsCheckingAccess(false);
+      router.replace("/login");
+      return;
+    }
+
+    try {
+      const parsedUser = JSON.parse(storedUser);
+      if (normalizeRole(parsedUser?.role) !== "admin") {
+        setHasAccess(false);
+        router.replace("/");
+        return;
+      }
+
+      setHasAccess(true);
+    } catch (parseError) {
+      console.error("Unable to parse stored user:", parseError);
+      setHasAccess(false);
+      setIsCheckingAccess(false);
+      router.replace("/login");
+    } finally {
+      setIsCheckingAccess(false);
+    }
+  }, [normalizeRole, router]);
+
+  useEffect(() => {
+    if (hasAccess) {
+      fetchUsers();
+    }
+  }, [fetchUsers, hasAccess]);
 
   const openModal = (type, user = null) => {
     setModalType(type);
@@ -51,8 +122,8 @@ const UserManagePage = () => {
         password: "",
         firstname: "",
         lastname: "",
-        role: "User",
-        status: "Active",
+        role: "user",
+        status: "active",
       });
     } else if (type === "edit" && user) {
       setFormData({
@@ -61,8 +132,8 @@ const UserManagePage = () => {
         password: "",
         firstname: user.firstname || "",
         lastname: user.lastname || "",
-        role: user.role,
-        status: user.status,
+        role: normalizeRole(user.role),
+        status: normalizeStatus(user.status),
       });
     }
     setShowModal(true);
@@ -75,88 +146,94 @@ const UserManagePage = () => {
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  const token = localStorage.getItem("accessToken");
+    e.preventDefault();
 
-  if (modalType === "add") {
-    try {
-      await axios.post(
-        "/register",
-        {
+    if (modalType === "add") {
+      try {
+        await apiClient.post("/register", {
           username: formData.username,
           email: formData.email,
           password: formData.password,
           firstname: formData.firstname,
           lastname: formData.lastname,
-          role: formData.role.toLowerCase(),
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          role: formData.role,
+          status: formData.status,
+        });
+
+        await fetchUsers();
+        closeModal();
+      } catch (err) {
+        console.error("Register error:", err.response?.data || err.message);
+        alert(err.response?.data?.message || "Registration failed.");
+      }
+    } else if (modalType === "edit") {
+      try {
+        if (!selectedUser) {
+          return;
         }
-      );
 
-      await fetchUsers();
-      closeModal();
-    } catch (err) {
-      console.error("Register error:", err.response?.data || err.message);
-      alert(err.response?.data?.message || "Registration failed.");
+        const payload = {
+          id: selectedUser.id,
+          username: formData.username,
+          email: formData.email,
+          firstname: formData.firstname,
+          lastname: formData.lastname,
+          role: formData.role,
+          status: formData.status,
+        };
+
+        if (formData.password.trim() !== "") {
+          payload.password = formData.password;
+        }
+
+        await apiClient.put("/edit", payload);
+
+        await fetchUsers();
+        closeModal();
+      } catch (err) {
+        console.error("Edit error:", err.response?.data || err.message);
+        alert(err.response?.data?.message || "Update failed.");
+      }
     }
-  } else if (modalType === "edit") {
+  };
+  const handleDelete = async () => {
     try {
-      const payload = {
-        id: selectedUser.id,
-        username: formData.username,
-        email: formData.email,
-        firstname: formData.firstname,
-        lastname: formData.lastname,
-        role: formData.role.toLowerCase(),
-        status: formData.status,
-      };
-
-      // ส่ง password ไปเฉพาะตอนที่ผู้ใช้ใส่ค่ามา
-      if (formData.password.trim() !== "") {
-        payload.password = formData.password;
+      if (!selectedUser) {
+        return;
       }
 
-      await axios.put("/edit", payload, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      await apiClient.delete(`/del/${selectedUser.id}`);
 
-      await fetchUsers();
-      closeModal();
+      await fetchUsers(); // โหลดข้อมูลใหม่หลังลบ
+      closeModal(); // ปิด modal
     } catch (err) {
-      console.error("Edit error:", err.response?.data || err.message);
-      alert(err.response?.data?.message || "Update failed.");
+      console.error("Delete error:", err.response?.data || err.message);
+      alert(err.response?.data?.message || "Delete failed.");
     }
-  }
-};
-
-
-  const handleDelete = async () => {
-  try {
-    const token = localStorage.getItem("accessToken");
-
-    await axios.delete(`/del/${selectedUser.id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    await fetchUsers();  // โหลดข้อมูลใหม่หลังลบ
-    closeModal();        // ปิด modal
-  } catch (err) {
-    console.error("Delete error:", err.response?.data || err.message);
-    alert(err.response?.data?.message || "Delete failed.");
-  }
-};
+  };
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
+
+  if (isCheckingAccess) {
+    return (
+      <PageContainer
+        meta="Administration"
+        title="Checking permissions"
+        description="Verifying your access to the administration console."
+        maxWidth="max-w-4xl"
+      >
+        <div className="rounded-3xl border border-slate-200 bg-white/70 p-6 text-center text-slate-700 shadow-sm">
+          <p className="text-sm leading-relaxed">Loading…</p>
+        </div>
+      </PageContainer>
+    );
+  }
+
+  if (!hasAccess) {
+    return null;
+  }
 
   if (error) {
     return (
@@ -211,16 +288,16 @@ const UserManagePage = () => {
               <tr key={user.id} className="transition hover:bg-slate-50/80">
                 <td className="px-6 py-4 font-medium text-slate-900">{user.username}</td>
                 <td className="px-6 py-4 text-slate-600">{user.email}</td>
-                <td className="px-6 py-4 text-slate-600">{user.role}</td>
+                <td className="px-6 py-4 text-slate-600">{titleCase(user.role)}</td>
                 <td className="px-6 py-4">
                   <span
                     className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${
-                      user.status === "Active"
+                      user.status === "active"
                         ? "bg-emerald-100 text-emerald-700"
                         : "bg-red-100 text-red-700"
                     }`}
                   >
-                    {user.status}
+                    {titleCase(user.status)}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-sm">
@@ -364,8 +441,8 @@ const UserManagePage = () => {
                     onChange={handleInputChange}
                     className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="User">User</option>
-                    <option value="Admin">Admin</option>
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
                   </select>
                 </div>
                 <div className="mb-6">
@@ -378,8 +455,8 @@ const UserManagePage = () => {
                     onChange={handleInputChange}
                     className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
                   </select>
                 </div>
                 <div className="flex gap-3 justify-end">

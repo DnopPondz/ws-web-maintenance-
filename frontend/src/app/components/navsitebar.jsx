@@ -10,11 +10,17 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
   const [logoutError, setLogoutError] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
+  const isAdmin = typeof user?.role === 'string' && user.role.toLowerCase() === 'admin';
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error('Unable to parse stored user:', error);
+        localStorage.removeItem('user');
+      }
     }
   }, []);
 
@@ -190,12 +196,14 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
               )}
             </div>
 
-            <NavLink
-              href="/admin"
-              icon="people"
-              label="Admin"
-              isOpen={isOpen}
-            />
+            {isAdmin && (
+              <NavLink
+                href="/admin"
+                icon="people"
+                label="Admin"
+                isOpen={isOpen}
+              />
+            )}
           </div>
         </nav>
 
