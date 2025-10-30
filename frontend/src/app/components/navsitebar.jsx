@@ -1,11 +1,11 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { logoutUser } from "../lib/api";
 import { useRouter } from "next/navigation";
 
 export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
-  const [isDashboardOpen, setIsDashboardOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState(() => ({ system: !isDesktop }));
   const [user, setUser] = useState(null);
   const [logoutError, setLogoutError] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -62,10 +62,11 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
   };
 
   useEffect(() => {
-    if (!isOpen) {
-      setIsDashboardOpen(false);
-    }
-  }, [isOpen]);
+    setExpandedGroups((previous) => ({
+      ...previous,
+      system: !isDesktop || previous.system,
+    }));
+  }, [isDesktop]);
 
   const handleNavigate = useCallback(() => {
     if (!isDesktop) {
@@ -73,15 +74,35 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
     }
   }, [isDesktop, setIsOpen]);
 
+  const navigationItems = useMemo(
+    () => [
+      { id: "home", href: "/", icon: "home", label: "Home" },
+      { id: "dashboard", href: "/dashboard", icon: "insights", label: "Dashboard" },
+      {
+        id: "system",
+        icon: "grid_view",
+        label: "System",
+        children: [
+          { id: "wordpress", href: "/WordPress", label: "WordPress" },
+          { id: "supportpal", href: "/Supportpal", label: "SupportPal" },
+        ],
+      },
+      isAdmin
+        ? { id: "admin", href: "/admin", icon: "group", label: "Admin" }
+        : null,
+    ].filter(Boolean),
+    [isAdmin],
+  );
+
   const toggleSidebar = () => {
     setIsOpen((prev) => !prev);
   };
 
   const toggleButtonClasses =
-    "fixed top-4 left-4 z-50 bg-[#316fb7] hover:bg-[#7a98bb] text-white p-3 rounded-md focus:outline-none focus:ring-0 transition-colors duration-200";
+    "fixed top-4 left-4 z-50 rounded-full bg-white/10 p-2 text-white shadow-lg backdrop-blur transition-all duration-200 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40";
 
   const asideClasses = [
-    "fixed top-0 left-0 h-screen bg-gradient-to-br from-[#316fb7] via-[#2a5fa0] to-[#1f4d85] text-white flex flex-col shadow-xl transition-all duration-300 z-40",
+    "fixed top-0 left-0 z-40 flex h-screen flex-col bg-gradient-to-br from-[#1f3d73] via-[#264f96] to-[#17315c] text-white shadow-2xl transition-all duration-300",
     isDesktop
       ? isOpen
         ? "w-64"
@@ -133,135 +154,77 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
 
       {/* Sidebar */}
       <aside className={asideClasses}>
-        {/* Header */}
-        <div className="px-4 pt-6">
-          <h2
-            className={`text-xl font-bold text-white transition-all duration-300 ${
-              isDesktop && !isOpen ? "opacity-0 w-0" : "opacity-100 ml-2"
-            }`}
-          >
-            Admin Panel
-          </h2>
-        </div>
-
-        <div className="px-4 pt-2">
-          {user ? (
-            <span
-              className={`text-sm bg-[#5c8bc0] hover:bg-[#688db8] cursor-pointer transition-all duration-300 ${
-                isDesktop && !isOpen
-                  ? "flex h-10 w-10 items-center justify-center rounded-full"
-                  : "block w-fit rounded-full px-3 py-1"
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="px-5 pt-8">
+            <div
+              className={`flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 p-4 shadow-inner backdrop-blur transition-all duration-300 ${
+                isDesktop && !isOpen ? "flex-col gap-2 text-center" : ""
               }`}
-              title={displayName}
             >
-              {isDesktop && !isOpen ? displayInitial : displayName}
-            </span>
-          ) : (
-            <span className="text-sm text-white/80">Not logged in</span>
-          )}
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 text-lg font-semibold uppercase">
+                {displayInitial}
+              </div>
+              <div
+                className={`min-w-0 text-left text-sm ${
+                  isDesktop && !isOpen ? "opacity-0 h-0 w-0" : "opacity-100"
+                } transition-all duration-300`}
+              >
+                <p className="font-semibold text-white">{displayName}</p>
+                <p className="text-xs text-white/70">{isAdmin ? "Administrator" : "Member"}</p>
+              </div>
+            </div>
+          </div>
+
+          <nav className="mt-6 flex-1 overflow-y-auto px-4 pb-8" aria-label="Main navigation">
+            <ul className="space-y-3">
+              {navigationItems.map((item) =>
+                item.children ? (
+                  <NavGroup
+                    key={item.id}
+                    item={item}
+                    isOpen={isOpen}
+                    isDesktop={isDesktop}
+                    isExpanded={Boolean(expandedGroups[item.id])}
+                    onToggle={() =>
+                      setExpandedGroups((previous) => ({
+                        ...previous,
+                        [item.id]: !previous[item.id],
+                      }))
+                    }
+                    onNavigate={handleNavigate}
+                  />
+                ) : (
+                  <li key={item.id}>
+                    <NavLink
+                      href={item.href}
+                      icon={item.icon}
+                      label={item.label}
+                      isOpen={isOpen}
+                      onNavigate={handleNavigate}
+                    />
+                  </li>
+                ),
+              )}
+            </ul>
+          </nav>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto p-4 pb-6" aria-label="Main navigation">
-          <div className="space-y-2">
-            <NavLink href="/" icon="home" label="Home" isOpen={isOpen} onNavigate={handleNavigate} />
-            <NavLink
-              href="/dashboard"
-              icon="insights"
-              label="Dashboard"
-              isOpen={isOpen}
-              onNavigate={handleNavigate}
-            />
-
-            {/* Dashboard with Submenu */}
-            <div>
-              <button
-                onClick={() => setIsDashboardOpen(!isDashboardOpen)}
-                className="w-full flex items-center p-3 rounded-lg transition-all duration-200 hover:bg-[#7a98bb] text-left"
-              >
-                <span
-                  className={`material-icons text-xl transition-all duration-300 ${
-                    isOpen ? "mr-3" : "mx-auto"
-                  }`}
-                >
-                  dashboard
-                </span>
-                <span
-                  className={`whitespace-nowrap transition-all duration-300 flex-1 ${
-                    isOpen
-                      ? "opacity-100 translate-x-0"
-                      : "opacity-0 -translate-x-2 w-0 overflow-hidden"
-                  }`}
-                >
-                  System
-                </span>
-                {isOpen && (
-                  <span
-                    className={`material-icons text-sm transition-transform duration-200 ${
-                      isDashboardOpen ? "rotate-180" : ""
-                    }`}
-                  >
-                    keyboard_arrow_down
-                  </span>
-                )}
-              </button>
-
-              {/* Submenu */}
-              {isOpen && (
-                <div
-                  className={`ml-6 mt-1 space-y-1 overflow-hidden transition-all duration-300 ${
-                    isDashboardOpen
-                      ? "max-h-32 opacity-100"
-                      : "max-h-0 opacity-0"
-                  }`}
-                >
-                  <Link
-                    href="/WordPress"
-                    onClick={handleNavigate}
-                    className="block rounded p-2 text-sm text-gray-300 transition-colors duration-200 hover:bg-[#7a98bb] hover:text-white"
-                  >
-                    WordPress
-                  </Link>
-                  <Link
-                    href="/Supportpal"
-                    onClick={handleNavigate}
-                    className="block rounded p-2 text-sm text-gray-300 transition-colors duration-200 hover:bg-[#7a98bb] hover:text-white"
-                  >
-                    SupportPal
-                  </Link>
-                </div>
-              )}
-            </div>
-
-            {isAdmin && (
-              <NavLink
-                href="/admin"
-                icon="people"
-                label="Admin"
-                isOpen={isOpen}
-                onNavigate={handleNavigate}
-              />
-            )}
-          </div>
-        </nav>
-
-        {/* Footer */}
-        <div className="p-4 text-center border-t border-gray-700 space-y-2">
+        <div className="border-t border-white/10 px-4 py-5">
           <button
             type="button"
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="w-full py-2 rounded-md text-sm font-medium text-red-200 hover:text-red-100 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-xl bg-white/10 py-2.5 text-sm font-semibold text-red-100 transition-all duration-200 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLoggingOut ? "Logging out..." : "Logout"}
           </button>
           {logoutError && (
-            <div className="text-xs text-red-100 bg-red-500/20 rounded-md px-3 py-2 space-y-1" aria-live="polite">
+            <div className="mt-3 rounded-xl border border-red-400/30 bg-red-500/20 px-3 py-2 text-xs text-red-100" aria-live="polite">
               <p>{logoutError}</p>
               <button
                 type="button"
                 onClick={handleForceLogout}
-                className="underline text-red-100 hover:text-red-50"
+                className="mt-1 inline-flex items-center text-[11px] font-semibold underline hover:text-red-50"
               >
                 Force logout
               </button>
@@ -273,30 +236,103 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
   );
 }
 
-// Extracted NavLink component for better maintainability
-function NavLink({ href, icon, label, isOpen, onNavigate, className = "" }) {
-  const baseClasses =
-    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 hover:bg-white/15";
-  const classes = className ? `${baseClasses} ${className}` : baseClasses;
+function NavLink({
+  href,
+  icon,
+  label,
+  isOpen,
+  onNavigate,
+  isChild = false,
+  showLabel,
+}) {
+  const shouldShowLabel = typeof showLabel === "boolean" ? showLabel : isOpen;
+  const baseClasses = `group relative flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all duration-200 ${
+    isChild
+      ? "bg-white/5 text-white/80 hover:bg-white/15"
+      : "bg-white/5 text-white hover:bg-white/20"
+  }`;
 
   return (
-    <Link href={href} className={classes} onClick={onNavigate}>
+    <Link href={href} className={baseClasses} onClick={onNavigate}>
       <span
-        className={`material-icons text-xl transition-all duration-300 ${
-          isOpen ? "mr-3" : "mx-auto"
-        }`}
+        className={`material-icons ${
+          isChild ? "text-base text-white/50" : "text-xl"
+        } transition-all duration-300 ${shouldShowLabel ? "" : "mx-auto"}`}
+        aria-hidden
       >
-        {icon}
+        {isChild ? "arrow_forward_ios" : icon}
       </span>
       <span
-        className={`whitespace-nowrap transition-all duration-300 ${
-          isOpen
-            ? "opacity-100 translate-x-0"
-            : "opacity-0 -translate-x-2 w-0 overflow-hidden"
+        className={`whitespace-nowrap text-left transition-all duration-300 ${
+          shouldShowLabel
+            ? "opacity-100"
+            : "pointer-events-none w-0 translate-x-2 overflow-hidden opacity-0"
         }`}
       >
         {label}
       </span>
     </Link>
+  );
+}
+
+function NavGroup({ item, isOpen, isDesktop, isExpanded, onToggle, onNavigate }) {
+  const shouldShowChildren = isDesktop ? isExpanded : true;
+
+  return (
+    <li>
+      <div className="rounded-3xl bg-white/5 p-2 shadow-inner">
+        <button
+          type="button"
+          onClick={isDesktop ? onToggle : undefined}
+          aria-expanded={isDesktop ? isExpanded : true}
+          className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/30 ${
+            isDesktop && !isOpen ? "justify-center" : "justify-between"
+          }`}
+        >
+          <span className="flex items-center gap-3">
+            <span
+              className={`material-icons text-xl transition-all duration-300 ${
+                isDesktop && !isOpen ? "" : ""
+              }`}
+              aria-hidden
+            >
+              {item.icon}
+            </span>
+            <span
+              className={`whitespace-nowrap transition-all duration-300 ${
+                isOpen ? "opacity-100" : "opacity-0 -translate-x-2"
+              } ${isDesktop && !isOpen ? "pointer-events-none hidden" : ""}`}
+            >
+              {item.label}
+            </span>
+          </span>
+          {isDesktop && isOpen && (
+            <span
+              className={`material-icons text-base transition-transform duration-200 ${
+                isExpanded ? "rotate-180" : ""
+              }`}
+            >
+              expand_more
+            </span>
+          )}
+        </button>
+
+        {shouldShowChildren && (
+          <div className="mt-2 space-y-2 rounded-2xl bg-white/5 p-3">
+            {item.children.map((child) => (
+              <NavLink
+                key={child.id}
+                href={child.href}
+                label={child.label}
+                isOpen={isOpen}
+                onNavigate={onNavigate}
+                isChild
+                showLabel={isOpen || !isDesktop}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </li>
   );
 }
