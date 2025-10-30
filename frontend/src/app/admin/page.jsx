@@ -223,6 +223,7 @@ const UserManagePage = () => {
         title="Checking permissions"
         description="Verifying your access to the administration console."
         maxWidth="max-w-4xl"
+        className="lg:ml-4"
       >
         <div className="rounded-3xl border border-slate-200 bg-white/70 p-6 text-center text-slate-700 shadow-sm">
           <p className="text-sm leading-relaxed">Loading…</p>
@@ -242,6 +243,7 @@ const UserManagePage = () => {
         title="Unable to load users"
         description="There was a problem fetching the user list."
         maxWidth="max-w-4xl"
+        className="lg:ml-4"
       >
         <div className="rounded-3xl border border-red-200 bg-red-50/90 p-6 text-center text-red-700 shadow-sm">
           <p className="text-sm leading-relaxed">{error}</p>
@@ -271,6 +273,7 @@ const UserManagePage = () => {
         </button>
       )}
       maxWidth="max-w-6xl"
+      className="lg:ml-4"
     >
       <div className="rounded-3xl border border-white/60 bg-white/80 shadow">
         <div className="w-full overflow-x-auto rounded-3xl">

@@ -1,8 +1,8 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState, useCallback } from 'react';
-import { logoutUser } from '../lib/api';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback } from "react";
+import { logoutUser } from "../lib/api";
+import { useRouter } from "next/navigation";
 
 export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
@@ -10,36 +10,36 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
   const [logoutError, setLogoutError] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
-  const isAdmin = typeof user?.role === 'string' && user.role.toLowerCase() === 'admin';
   const fullName = [user?.firstname, user?.lastname]
-    .filter((part) => typeof part === 'string' && part.trim().length > 0)
-    .join(' ');
-  const displayName = fullName || user?.username || user?.email || 'User';
-  const displayInitial = displayName ? displayName.charAt(0).toUpperCase() : '?';
+    .filter((part) => typeof part === "string" && part.trim().length > 0)
+    .join(" ");
+  const displayName = fullName || user?.username || user?.email || "User";
+  const displayInitial = displayName ? displayName.charAt(0).toUpperCase() : "?";
+  const isAdmin = typeof user?.role === "string" && user.role.toLowerCase() === "admin";
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
+    const storedUser = localStorage.getItem("user");
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser));
       } catch (error) {
-        console.error('Unable to parse stored user:', error);
-        localStorage.removeItem('user');
+        console.error("Unable to parse stored user:", error);
+        localStorage.removeItem("user");
       }
     }
   }, []);
 
   const clearSessionAndRedirect = useCallback(() => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
-    router.push('/login');
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
+    localStorage.removeItem("user");
+    router.push("/login");
   }, [router]);
 
   const handleLogout = async () => {
     setLogoutError(null);
 
-    const refreshToken = localStorage.getItem('refreshToken');
+    const refreshToken = localStorage.getItem("refreshToken");
     if (!refreshToken) {
       clearSessionAndRedirect();
       return;
@@ -50,8 +50,8 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
       await logoutUser(refreshToken);
       clearSessionAndRedirect();
     } catch (err) {
-      console.error('Logout failed:', err);
-      setLogoutError(err.message || 'Unable to log out. Please try again.');
+      console.error("Logout failed:", err);
+      setLogoutError(err.message || "Unable to log out. Please try again.");
     } finally {
       setIsLoggingOut(false);
     }
@@ -77,10 +77,19 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
     setIsOpen((prev) => !prev);
   };
 
-  const toggleButtonClasses = [
-    'fixed top-4 z-50 bg-[#316fb7] hover:bg-[#7a98bb] text-white p-3 rounded-md focus:outline-none focus:ring-0 transition-colors duration-200',
-    isDesktop ? (isOpen ? 'left-60' : 'left-6') : 'left-4'
-  ].join(' ');
+  const toggleButtonClasses =
+    "fixed top-4 left-4 z-50 bg-[#316fb7] hover:bg-[#7a98bb] text-white p-3 rounded-md focus:outline-none focus:ring-0 transition-colors duration-200";
+
+  const asideClasses = [
+    "fixed top-0 left-0 h-screen bg-gradient-to-br from-[#316fb7] via-[#2a5fa0] to-[#1f4d85] text-white flex flex-col shadow-xl transition-all duration-300 z-40",
+    isDesktop
+      ? isOpen
+        ? "w-64"
+        : "w-16"
+      : `w-64 ${isOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <>
@@ -123,29 +132,25 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
       )}
 
       {/* Sidebar */}
-      <aside
-        className={`fixed top-0 left-0 h-screen bg-gradient-to-br from-[#316fb7] via-[#2a5fa0] to-[#1f4d85] text-white flex flex-col shadow-xl transition-all duration-300 z-40 transform ${
-          isDesktop
-            ? isOpen
-              ? 'w-64'
-              : 'w-16'
-            : `w-64 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`
-        } lg:translate-x-0`}
-      >
+      <aside className={asideClasses}>
         {/* Header */}
-        <div className={`px-4 pt-6 ${isDesktop && !isOpen ? 'hidden lg:block lg:px-0' : ''}`}>
-          {(!isDesktop || isOpen) && (
-            <h2 className="text-xl font-bold text-white">Admin Panel</h2>
-          )}
+        <div className="px-4 pt-6">
+          <h2
+            className={`text-xl font-bold text-white transition-all duration-300 ${
+              isDesktop && !isOpen ? "opacity-0 w-0" : "opacity-100 ml-2"
+            }`}
+          >
+            Admin Panel
+          </h2>
         </div>
 
-        <div className="px-4 pt-4">
+        <div className="px-4 pt-2">
           {user ? (
             <span
-              className={`text-sm text-white bg-[#5c8bc0] hover:bg-[#688db8] cursor-pointer transition-all duration-300 ${
+              className={`text-sm bg-[#5c8bc0] hover:bg-[#688db8] cursor-pointer transition-all duration-300 ${
                 isDesktop && !isOpen
-                  ? 'flex h-10 w-10 items-center justify-center rounded-full'
-                  : 'block w-fit rounded-full px-3 py-1'
+                  ? "flex h-10 w-10 items-center justify-center rounded-full"
+                  : "block w-fit rounded-full px-3 py-1"
               }`}
               title={displayName}
             >
@@ -248,7 +253,7 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
             disabled={isLoggingOut}
             className="w-full py-2 rounded-md text-sm font-medium text-red-200 hover:text-red-100 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isLoggingOut ? 'Logging out...' : 'Logout'}
+            {isLoggingOut ? "Logging out..." : "Logout"}
           </button>
           {logoutError && (
             <div className="text-xs text-red-100 bg-red-500/20 rounded-md px-3 py-2 space-y-1" aria-live="polite">
