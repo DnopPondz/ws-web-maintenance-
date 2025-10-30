@@ -232,6 +232,41 @@ export async function logoutUser(refreshToken) {
   }
 }
 
+export async function fetchAllUsers() {
+  try {
+    const res = await apiClient.get('/users');
+    return res.data?.users || [];
+  } catch (error) {
+    throw buildError(error, 'Unable to load users');
+  }
+}
+
+export async function createUserAccount(user) {
+  try {
+    const res = await apiClient.post('/register', user);
+    return res.data;
+  } catch (error) {
+    throw buildError(error, 'Unable to create the user');
+  }
+}
+
+export async function updateUserAccount(payload) {
+  try {
+    const res = await apiClient.put('/edit', payload);
+    return res.data;
+  } catch (error) {
+    throw buildError(error, 'Unable to update the user');
+  }
+}
+
+export async function deleteUserAccount(id) {
+  try {
+    await apiClient.delete(`/del/${id}`);
+  } catch (error) {
+    throw buildError(error, 'Unable to delete the user');
+  }
+}
+
 export async function fetchWordpressSites() {
   try {
     const res = await apiClient.get('/wp/site');

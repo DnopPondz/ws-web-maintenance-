@@ -1,67 +1,162 @@
 "use client";
-import { useEffect, useState } from "react";
-import { Plus, Edit, Trash2, Eye, EyeOff } from "lucide-react";
 
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Plus, Edit, Trash2, Eye, EyeOff } from "lucide-react";
+import PageContainer from "../components/PageContainer";
+import {
+  createUserAccount,
+  deleteUserAccount,
+  fetchAllUsers,
+  updateUserAccount,
+} from "../lib/api";
+
+const ROLE_OPTIONS = [
+  { value: "user", label: "User" },
+  { value: "admin", label: "Admin" },
+];
+
+const STATUS_OPTIONS = [
+  { value: "active", label: "Active" },
+  { value: "suspended", label: "Suspended" },
+];
+
+const STATUS_STYLES = {
+  active: "bg-emerald-100 text-emerald-700",
+  suspended: "bg-red-100 text-red-700",
+  inactive: "bg-red-100 text-red-700",
+};
+
+const DEFAULT_FORM_STATE = {
+  username: "",
+  email: "",
+  password: "",
+  firstname: "",
+  lastname: "",
+  role: "user",
+  status: "active",
+};
+
+const buildEmptyFormState = () => ({ ...DEFAULT_FORM_STATE });
+
+const normalizeUser = (user) => ({
+  ...user,
+  role: typeof user.role === "string" ? user.role.toLowerCase() : "user",
+  status: typeof user.status === "string" ? user.status.toLowerCase() : "active",
+});
+
+const formatStatusLabel = (status) => {
+  if (!status) {
+    return "Unknown";
+  }
+
+  const option = STATUS_OPTIONS.find((item) => item.value === status);
+  if (option) {
+    return option.label;
+  }
+
+  return status.charAt(0).toUpperCase() + status.slice(1);
+};
 
 const UserManagePage = () => {
+  const router = useRouter();
   const [users, setUsers] = useState([]);
   const [error, setError] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState("add");
   const [selectedUser, setSelectedUser] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({
-    username: "",
-    email: "",
-    password: "",
-    firstname: "",
-    lastname: "",
-    role: "User",
-    status: "Active",
-  });
+  const [formData, setFormData] = useState(() => buildEmptyFormState());
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasAccess, setHasAccess] = useState(false);
+  const [isCheckingAccess, setIsCheckingAccess] = useState(true);
 
-  const fetchUsers = async () => {
+  const loadUsers = useCallback(async () => {
+    setIsLoading(true);
+    setError("");
+
     try {
-      const token = localStorage.getItem("accessToken");
-      const response = await axios.get("/users", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      setUsers(response.data.users);
+      const data = await fetchAllUsers();
+      const normalizedUsers = Array.isArray(data)
+        ? data.map((user) => normalizeUser(user))
+        : [];
+      setUsers(normalizedUsers);
     } catch (err) {
-      setError(err.response?.data?.message || "Error fetching users");
+      console.error("Fetch users error:", err);
+      setError(err.message || "Unable to load users.");
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    let isActive = true;
+
+    const verifyAccess = () => {
+      try {
+        const storedUser = localStorage.getItem("user");
+
+        if (!storedUser) {
+          router.replace("/login");
+          return;
+        }
+
+        const parsedUser = JSON.parse(storedUser);
+        const role = parsedUser?.role?.toLowerCase();
+
+        if (role === "admin") {
+          if (isActive) {
+            setHasAccess(true);
+          }
+        } else {
+          router.replace("/dashboard");
+        }
+      } catch (err) {
+        console.error("Access verification error:", err);
+        router.replace("/login");
+      } finally {
+        if (isActive) {
+          setIsCheckingAccess(false);
+        }
+      }
+    };
+
+    verifyAccess();
+
+    return () => {
+      isActive = false;
+    };
+  }, [router]);
+
+  useEffect(() => {
+    if (!hasAccess) {
+      return;
+    }
+
+    loadUsers();
+  }, [hasAccess, loadUsers]);
 
   const openModal = (type, user = null) => {
     setModalType(type);
-    setSelectedUser(user);
+    setSelectedUser(user ? normalizeUser(user) : null);
+
     if (type === "add") {
-      setFormData({
-        username: "",
-        email: "",
-        password: "",
-        firstname: "",
-        lastname: "",
-        role: "User",
-        status: "Active",
-      });
+      setFormData(buildEmptyFormState());
     } else if (type === "edit" && user) {
+      const normalizedUser = normalizeUser(user);
       setFormData({
-        username: user.username,
-        email: user.email,
+        username: normalizedUser.username || "",
+        email: normalizedUser.email || "",
         password: "",
-        firstname: user.firstname || "",
-        lastname: user.lastname || "",
-        role: user.role,
-        status: user.status,
+        firstname: normalizedUser.firstname || "",
+        lastname: normalizedUser.lastname || "",
+        role: normalizedUser.role || "user",
+        status: normalizedUser.status || "active",
       });
     }
+
+    setShowPassword(false);
     setShowModal(true);
   };
 
@@ -69,183 +164,210 @@ const UserManagePage = () => {
     setShowModal(false);
     setSelectedUser(null);
     setShowPassword(false);
+    setFormData(buildEmptyFormState());
+    setIsProcessing(false);
   };
 
-  const handleSubmit = async (e) => {
-  e.preventDefault();
-  const token = localStorage.getItem("accessToken");
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
-  if (modalType === "add") {
-    try {
-      await axios.post(
-        "/register",
-        {
-          username: formData.username,
-          email: formData.email,
-          password: formData.password,
-          firstname: formData.firstname,
-          lastname: formData.lastname,
-          role: formData.role.toLowerCase(),
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      await fetchUsers();
-      closeModal();
-    } catch (err) {
-      console.error("Register error:", err.response?.data || err.message);
-      alert(err.response?.data?.message || "Registration failed.");
+    if (modalType === "delete") {
+      return;
     }
-  } else if (modalType === "edit") {
-    try {
-      const payload = {
-        id: selectedUser.id,
-        username: formData.username,
-        email: formData.email,
-        firstname: formData.firstname,
-        lastname: formData.lastname,
-        role: formData.role.toLowerCase(),
-        status: formData.status,
-      };
 
-      // ส่ง password ไปเฉพาะตอนที่ผู้ใช้ใส่ค่ามา
-      if (formData.password.trim() !== "") {
-        payload.password = formData.password;
+    setIsProcessing(true);
+
+    try {
+      if (modalType === "add") {
+        await createUserAccount({
+          username: formData.username.trim(),
+          email: formData.email.trim(),
+          password: formData.password,
+          firstname: formData.firstname.trim(),
+          lastname: formData.lastname.trim(),
+          role: formData.role,
+        });
+      } else if (modalType === "edit" && selectedUser) {
+        const payload = {
+          id: selectedUser.id,
+          username: formData.username.trim(),
+          email: formData.email.trim(),
+          firstname: formData.firstname.trim(),
+          lastname: formData.lastname.trim(),
+          role: formData.role,
+          status: formData.status,
+        };
+
+        if (formData.password.trim()) {
+          payload.password = formData.password;
+        }
+
+        await updateUserAccount(payload);
       }
 
-      await axios.put("/edit", payload, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      await fetchUsers();
+      await loadUsers();
       closeModal();
     } catch (err) {
-      console.error("Edit error:", err.response?.data || err.message);
-      alert(err.response?.data?.message || "Update failed.");
+      console.error("Submit error:", err);
+      alert(err.message || "Unable to save the user.");
+      setIsProcessing(false);
     }
-  }
-};
-
-
-  const handleDelete = async () => {
-  try {
-    const token = localStorage.getItem("accessToken");
-
-    await axios.delete(`/del/${selectedUser.id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    await fetchUsers();  // โหลดข้อมูลใหม่หลังลบ
-    closeModal();        // ปิด modal
-  } catch (err) {
-    console.error("Delete error:", err.response?.data || err.message);
-    alert(err.response?.data?.message || "Delete failed.");
-  }
-};
-
-  const handleInputChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  if (error) return <p>Error: {error}</p>;
+  const handleDelete = async () => {
+    if (!selectedUser) {
+      return;
+    }
 
-  return (
-    <div className="min-h-full bg-gray-100 p-6 relative">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">User Management</h1>
+    setIsProcessing(true);
+
+    try {
+      await deleteUserAccount(selectedUser.id);
+      await loadUsers();
+      closeModal();
+    } catch (err) {
+      console.error("Delete error:", err);
+      alert(err.message || "Unable to delete the user.");
+      setIsProcessing(false);
+    }
+  };
+
+  const handleInputChange = (event) => {
+    const { name, value } = event.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  if (isCheckingAccess) {
+    return (
+      <PageContainer
+        meta="Administration"
+        title="Checking permissions"
+        description="Ensuring you have access to the administration console."
+        maxWidth="max-w-3xl"
+      >
+        <div className="rounded-3xl border border-slate-200 bg-white/70 p-6 text-center text-slate-600 shadow-sm">
+          <p className="text-sm">Loading…</p>
+        </div>
+      </PageContainer>
+    );
+  }
+
+  if (!hasAccess) {
+    return null;
+  }
+
+  if (error) {
+    return (
+      <PageContainer
+        meta="Administration"
+        title="Unable to load users"
+        description="There was a problem fetching the user list."
+        maxWidth="max-w-4xl"
+      >
+        <div className="rounded-3xl border border-red-200 bg-red-50/90 p-6 text-center text-red-700 shadow-sm">
+          <p className="text-sm leading-relaxed">{error}</p>
           <button
-            onClick={() => openModal("add")}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors duration-200 cursor-pointer"
+            onClick={loadUsers}
+            className="mt-4 inline-flex items-center gap-2 rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-red-700"
           >
-            <Plus size={16} />
-            Add User
+            Try again
           </button>
         </div>
+      </PageContainer>
+    );
+  }
 
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50">
+  return (
+    <PageContainer
+      meta="Administration"
+      title="User management"
+      description="Manage team access with the same refreshed interface used across the maintenance suite."
+      actions={(
+        <button
+          onClick={() => openModal("add")}
+          className="inline-flex items-center gap-2 rounded-full bg-[#316fb7] px-5 py-2 text-sm font-semibold text-white shadow transition hover:bg-[#244f8a]"
+        >
+          <Plus size={16} />
+          Add user
+        </button>
+      )}
+      maxWidth="max-w-6xl"
+    >
+      <div className="overflow-hidden rounded-3xl border border-white/60 bg-white/80 shadow">
+        <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+          <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-6 py-3">Username</th>
+              <th className="px-6 py-3">Email</th>
+              <th className="px-6 py-3">Role</th>
+              <th className="px-6 py-3">Status</th>
+              <th className="px-6 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 bg-white/60">
+            {isLoading ? (
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Username
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Email
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Role
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Actions
-                </th>
+                <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                  Loading users…
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {users.map((user) => (
-                <tr
-                  key={user.id}
-                  className="hover:bg-gray-50 transition-colors duration-150"
-                >
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                    {user.username}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {user.email}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {user.role}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        user.status === "Active"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {user.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => openModal("edit", user)}
-                        className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50 transition-all duration-200 cursor-pointer"
+            ) : users.length > 0 ? (
+              users.map((user) => {
+                const normalizedStatus = user.status || "active";
+                const badgeStyles =
+                  STATUS_STYLES[normalizedStatus] || "bg-slate-100 text-slate-600";
+
+                return (
+                  <tr key={user.id} className="transition hover:bg-slate-50/80">
+                    <td className="px-6 py-4 font-medium text-slate-900">{user.username}</td>
+                    <td className="px-6 py-4 text-slate-600">{user.email}</td>
+                    <td className="px-6 py-4 text-slate-600">
+                      {user.role === "admin" ? "Admin" : "User"}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${badgeStyles}`}
                       >
-                        <Edit size={16} />
-                      </button>
-                      <button
-                        onClick={() => openModal("delete", user)}
-                        className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition-all duration-200 cursor-pointer"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                        {formatStatusLabel(normalizedStatus)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openModal("edit", user)}
+                          className="inline-flex items-center justify-center rounded-full bg-[#316fb7]/10 p-2 text-[#316fb7] transition hover:bg-[#316fb7]/20"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button
+                          onClick={() => openModal("delete", user)}
+                          className="inline-flex items-center justify-center rounded-full bg-red-500/10 p-2 text-red-600 transition hover:bg-red-500/20"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                  No users found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
-      {/* Modal */}
       {showModal && (
-        <div className="absolute inset-0 bg-white bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
-            <h2 className="text-lg font-semibold mb-6 text-gray-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
+            <h2 className="mb-6 text-lg font-semibold text-gray-800">
               {modalType === "add" && "Add New User"}
               {modalType === "edit" && "Edit User"}
               {modalType === "delete" && "Delete User"}
@@ -253,55 +375,56 @@ const UserManagePage = () => {
 
             {modalType === "delete" ? (
               <div>
-                <p className="text-gray-600 mb-6">
-                  Are you sure you want to delete user "{selectedUser?.username}
-                  "?
+                <p className="mb-6 text-gray-600">
+                  Are you sure you want to delete user "{selectedUser?.username}"?
                 </p>
-                <div className="flex gap-3 justify-end">
+                <div className="flex justify-end gap-3">
                   <button
                     onClick={closeModal}
-                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                    className="cursor-pointer rounded-lg border border-gray-300 px-4 py-2 text-gray-600 hover:bg-gray-50"
+                    disabled={isProcessing}
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleDelete}
-                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transform hover:scale-105 cursor-pointer"
+                    className="cursor-pointer rounded-lg bg-red-500 px-4 py-2 text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={isProcessing}
                   >
-                    Delete
+                    {isProcessing ? "Deleting..." : "Delete"}
                   </button>
                 </div>
               </div>
             ) : (
-              <form onSubmit={handleSubmit}>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Firstname
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    First name
                   </label>
                   <input
                     type="text"
                     name="firstname"
                     value={formData.firstname}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
                 </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Lastname
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Last name
                   </label>
                   <input
                     type="text"
                     name="lastname"
                     value={formData.lastname}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
                 </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
                     Username
                   </label>
                   <input
@@ -309,12 +432,12 @@ const UserManagePage = () => {
                     name="username"
                     value={formData.username}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
                 </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
                     Email
                   </label>
                   <input
@@ -322,14 +445,14 @@ const UserManagePage = () => {
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
                 </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
                     {modalType === "edit"
-                      ? "New Password (leave blank to keep current)"
+                      ? "New password (optional)"
                       : "Password"}
                   </label>
                   <div className="relative">
@@ -338,59 +461,67 @@ const UserManagePage = () => {
                       name="password"
                       value={formData.password}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg pr-10 focus:ring-2 focus:ring-blue-500"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       required={modalType === "add"}
                     />
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 cursor-pointer"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="absolute right-3 top-3 text-gray-400 transition hover:text-gray-600"
                     >
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
                 </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
                     Role
                   </label>
                   <select
                     name="role"
                     value={formData.role}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="User">User</option>
-                    <option value="Admin">Admin</option>
+                    {ROLE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
                     Status
                   </label>
                   <select
                     name="status"
                     value={formData.status}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
+                    {STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
-                <div className="flex gap-3 justify-end">
+                <div className="flex justify-end gap-3">
                   <button
                     type="button"
                     onClick={closeModal}
-                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                    className="cursor-pointer rounded-lg border border-gray-300 px-4 py-2 text-gray-600 hover:bg-gray-50"
+                    disabled={isProcessing}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transform hover:scale-105 cursor-pointer"
+                    className="cursor-pointer rounded-lg bg-blue-500 px-4 py-2 text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={isProcessing}
                   >
-                    {modalType === "add" ? "Add User" : "Save Changes"}
+                    {isProcessing ? "Saving..." : modalType === "add" ? "Add User" : "Save Changes"}
                   </button>
                 </div>
               </form>
@@ -398,7 +529,7 @@ const UserManagePage = () => {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 };
 

@@ -12,16 +12,44 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
   const router = useRouter();
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
+    const loadUserFromStorage = () => {
+      try {
+        const storedUser = localStorage.getItem('user');
+
+        if (!storedUser) {
+          setUser(null);
+          return;
+        }
+
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+      } catch (error) {
+        console.error('Failed to parse stored user:', error);
+        localStorage.removeItem('user');
+        setUser(null);
+      }
+    };
+
+    loadUserFromStorage();
+
+    const handleStorage = (event) => {
+      if (event.key === 'user') {
+        loadUserFromStorage();
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   const clearSessionAndRedirect = useCallback(() => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
+    setUser(null);
     router.push('/login');
   }, [router]);
 
@@ -49,6 +77,11 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
   const handleForceLogout = () => {
     clearSessionAndRedirect();
   };
+
+  const isAdmin = user?.role?.toLowerCase() === 'admin';
+  const displayName = user
+    ? [user.firstname, user.lastname].filter(Boolean).join(' ') || user.username || user.email
+    : '';
 
   return (
     <>
@@ -84,14 +117,14 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
       {/* Overlay for mobile */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-white bg-opacity-50 z-[-1] "
+          className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm"
           onClick={() => setIsOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-screen bg-[#316fb7] text-white flex flex-col transition-all duration-300 z-40 ${
+        className={`fixed top-0 left-0 h-screen bg-gradient-to-br from-[#316fb7] via-[#2a5fa0] to-[#1f4d85] text-white flex flex-col shadow-xl transition-all duration-300 z-40 ${
           isOpen ? "w-64" : "w-16"
         }`}
       >
@@ -106,20 +139,20 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
           </h2>
         </div>
 
-         <div className="p-2 ml-5">
-  {user ? (
-    <span
-      className="text-sm bg-[#5c8bc0] rounded-4xl hover:bg-[#688db8] cursor-pointer px-3 py-1 block w-fit transition-all duration-300"
-      title={`${user.firstname} ${user.lastname}`} // Tooltip ตอน hover
-    >
-      {isOpen
-        ? `${user.firstname} ${user.lastname}`
-        : user.firstname.charAt(0)}
-    </span>
-  ) : (
-    <span className="text-sm">Not logged in</span>
-  )}
-</div>
+        <div className="p-2 ml-5">
+          {user ? (
+            <span
+              className="block w-fit rounded-4xl bg-[#5c8bc0] px-3 py-1 text-sm transition-all duration-300 hover:bg-[#688db8]"
+              title={displayName}
+            >
+              {isOpen
+                ? displayName
+                : (displayName || 'U').charAt(0)}
+            </span>
+          ) : (
+            <span className="text-sm">Not logged in</span>
+          )}
+        </div>
 
         {/* Navigation */}
         <nav className="flex-1 p-4">
@@ -190,12 +223,14 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
               )}
             </div>
 
-            <NavLink
-              href="/admin"
-              icon="people"
-              label="Admin"
-              isOpen={isOpen}
-            />
+            {isAdmin && (
+              <NavLink
+                href="/admin"
+                icon="people"
+                label="Admin"
+                isOpen={isOpen}
+              />
+            )}
           </div>
         </nav>
 
@@ -230,7 +265,7 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
 // Extracted NavLink component for better maintainability
 function NavLink({ href, icon, label, isOpen, className = "" }) {
   const baseClasses =
-    "flex items-center p-3 rounded-lg transition-all duration-200 hover:bg-[#7a98bb]";
+    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 hover:bg-white/15";
   const classes = className ? `${baseClasses} ${className}` : baseClasses;
 
   return (
