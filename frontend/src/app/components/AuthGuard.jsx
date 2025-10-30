@@ -1,14 +1,37 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 
 const ADMIN_ONLY_PATH_PREFIXES = ['/wordpress', '/supportpal', '/admin'];
+const EMPTY_EXCLUDED_PATHS = Object.freeze([]);
 
 const normaliseString = (value) =>
   typeof value === 'string' ? value.trim().toLowerCase() : '';
 
-export default function AuthGuard({ children, excludedPaths = [] }) {
+const normaliseExcludedPaths = (paths) => {
+  if (!Array.isArray(paths) || paths.length === 0) {
+    return EMPTY_EXCLUDED_PATHS;
+  }
+
+  const deduped = new Set();
+
+  paths.forEach((path) => {
+    const normalised = normaliseString(path);
+
+    if (normalised) {
+      deduped.add(normalised);
+    }
+  });
+
+  if (deduped.size === 0) {
+    return EMPTY_EXCLUDED_PATHS;
+  }
+
+  return Array.from(deduped);
+};
+
+export default function AuthGuard({ children, excludedPaths }) {
   const router = useRouter();
   const pathname = usePathname();
   const [authState, setAuthState] = useState({
@@ -16,21 +39,37 @@ export default function AuthGuard({ children, excludedPaths = [] }) {
     authorized: false,
   });
 
+  const resolvedExcludedPaths = useMemo(
+    () => normaliseExcludedPaths(excludedPaths),
+    [excludedPaths],
+  );
+
+  const commitAuthState = (nextState) => {
+    setAuthState((previous) => {
+      if (
+        previous.checking === nextState.checking &&
+        previous.authorized === nextState.authorized
+      ) {
+        return previous;
+      }
+
+      return nextState;
+    });
+  };
+
   useEffect(() => {
     const normalisedPath = normaliseString(pathname);
-    const isExcluded = excludedPaths.some(
-      (path) => normaliseString(path) === normalisedPath,
-    );
+    const isExcluded = resolvedExcludedPaths.includes(normalisedPath);
 
     if (isExcluded) {
-      setAuthState({ checking: false, authorized: true });
+      commitAuthState({ checking: false, authorized: true });
       return;
     }
 
     const accessToken = localStorage.getItem('accessToken');
 
     if (!accessToken) {
-      setAuthState({ checking: false, authorized: false });
+      commitAuthState({ checking: false, authorized: false });
       router.replace('/login');
       return;
     }
@@ -56,14 +95,14 @@ export default function AuthGuard({ children, excludedPaths = [] }) {
         normaliseString(storedUser.role) === 'admin';
 
       if (!isAdmin) {
-        setAuthState({ checking: false, authorized: false });
+        commitAuthState({ checking: false, authorized: false });
         router.replace('/');
         return;
       }
     }
 
-    setAuthState({ checking: false, authorized: true });
-  }, [router, pathname, excludedPaths]);
+    commitAuthState({ checking: false, authorized: true });
+  }, [router, pathname, resolvedExcludedPaths]);
 
   if (authState.checking) {
     return <div>Loading...</div>;
