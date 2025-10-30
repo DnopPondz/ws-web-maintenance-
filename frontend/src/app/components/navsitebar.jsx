@@ -277,29 +277,49 @@ function NavLink({
 
 function NavGroup({ item, isOpen, isDesktop, isExpanded, onToggle, onNavigate }) {
   const isCollapsedDesktop = isDesktop && !isOpen;
-  const shouldShowChildren =
-    isCollapsedDesktop || (isDesktop ? isExpanded && isOpen : true);
+  const shouldShowChildren = isCollapsedDesktop
+    ? true
+    : isDesktop
+    ? isExpanded && isOpen
+    : true;
 
-  const childrenMarkup = shouldShowChildren ? (
-    <div
-      className={`space-y-1 ${
-        isCollapsedDesktop ? "mt-3" : "mt-2"
-      }`}
-    >
-      {item.children.map((child) => (
+  const parentButtonClasses = [
+    "flex w-full items-center rounded-lg px-3 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30",
+    isCollapsedDesktop ? "justify-center" : "justify-between",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const showParentLabel = !isCollapsedDesktop && (isOpen || !isDesktop);
+
+  const collapsedChildren = isCollapsedDesktop
+    ? item.children.map((child) => (
         <NavLink
           key={child.id}
           href={child.href}
           icon={child.icon}
           label={child.label}
-          isOpen={isCollapsedDesktop ? false : isOpen}
+          isOpen={false}
           onNavigate={onNavigate}
-          isChild={!isCollapsedDesktop}
-          showLabel={isCollapsedDesktop ? false : isOpen || !isDesktop}
+          showLabel={false}
         />
-      ))}
-    </div>
-  ) : null;
+      ))
+    : null;
+
+  const expandedChildren = !isCollapsedDesktop && shouldShowChildren
+    ? item.children.map((child) => (
+        <NavLink
+          key={child.id}
+          href={child.href}
+          icon={child.icon}
+          label={child.label}
+          isOpen={isOpen}
+          onNavigate={onNavigate}
+          isChild
+          showLabel={isOpen || !isDesktop}
+        />
+      ))
+    : null;
 
   return (
     <li>
@@ -308,19 +328,17 @@ function NavGroup({ item, isOpen, isDesktop, isExpanded, onToggle, onNavigate })
           type="button"
           onClick={isDesktop ? onToggle : undefined}
           aria-expanded={isDesktop ? isExpanded : true}
-          aria-label={isDesktop && !isOpen ? item.label : undefined}
+          aria-label={isCollapsedDesktop ? item.label : undefined}
           title={item.label}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 ${
-            isDesktop && !isOpen ? "justify-center" : "justify-between"
-          }`}
+          className={parentButtonClasses}
         >
           <span className="flex items-center gap-3">
             <span className="material-icons text-lg" aria-hidden>
               {item.icon}
             </span>
-            {(isOpen || !isDesktop) && <span className="truncate">{item.label}</span>}
+            {showParentLabel && <span className="truncate">{item.label}</span>}
           </span>
-          {isDesktop && isOpen && (
+          {!isCollapsedDesktop && isDesktop && isOpen && (
             <span
               className={`material-icons text-base transition-transform duration-200 ${
                 isExpanded ? "-rotate-180" : ""
@@ -331,9 +349,13 @@ function NavGroup({ item, isOpen, isDesktop, isExpanded, onToggle, onNavigate })
           )}
         </button>
 
-        {!isCollapsedDesktop && childrenMarkup}
+        {!isCollapsedDesktop && expandedChildren && (
+          <div className={`space-y-1 ${isDesktop ? "mt-2" : "mt-3"}`}>{expandedChildren}</div>
+        )}
       </div>
-      {isCollapsedDesktop && childrenMarkup}
+      {isCollapsedDesktop && collapsedChildren && (
+        <div className="mt-3 space-y-1">{collapsedChildren}</div>
+      )}
     </li>
   );
 }
