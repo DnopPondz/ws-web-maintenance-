@@ -5,6 +5,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import NavSidebar from "./components/navsitebar";
 import AuthGuard from './components/AuthGuard';
+import PageTransition from "./components/PageTransition";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,20 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export default function RootLayout({ children }) {
-  const [isDesktop, setIsDesktop] = useState(() => {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-
-    return window.innerWidth >= 1024;
-  });
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-
-    return window.innerWidth >= 1024;
-  });
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
 
   // หน้าที่ไม่ต้องการ Sidebar และไม่ต้องการ AuthGuard
@@ -44,8 +33,7 @@ export default function RootLayout({ children }) {
         return;
       }
 
-      const desktop = window.innerWidth >= 1024;
-      setIsDesktop(desktop);
+      setIsDesktop(window.innerWidth >= 1024);
     };
 
     handleResize();
@@ -105,7 +93,9 @@ export default function RootLayout({ children }) {
                   : ''
               }`}
             >
-              <div className="min-h-screen w-full">{children}</div>
+              <PageTransition>
+                <div className="min-h-screen w-full">{children}</div>
+              </PageTransition>
             </main>
           </AuthGuard >
         ) : (
@@ -120,7 +110,9 @@ export default function RootLayout({ children }) {
                 : ''
             }`}
           >
-            <div className="min-h-screen w-full">{children}</div>
+            <PageTransition>
+              <div className="min-h-screen w-full">{children}</div>
+            </PageTransition>
           </main>
         )}
 
