@@ -8,6 +8,7 @@ import {
   updateWordpressSite,
   deleteWordpressSite,
 } from "../lib/api";
+import PageContainer from "../components/PageContainer";
 
 let englishDateFormatter;
 
@@ -672,28 +673,38 @@ const WpDashboard = () => {
 
   if (error && !hasFetchedInitialSites) {
     return (
-      <div className="p-4 max-w-3xl mx-auto space-y-4">
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-6 text-center">
-          <h1 className="text-xl font-semibold mb-2">An error occurred while fetching data</h1>
-          <p className="text-sm mb-4">{error}</p>
+      <PageContainer
+        meta="WordPress platform"
+        title="Unable to load WordPress websites"
+        description="There was a problem reaching the data source. Try refreshing to attempt the request again."
+        maxWidth="max-w-3xl"
+      >
+        <div className="rounded-3xl border border-red-200 bg-red-50/90 p-6 text-center text-red-700 shadow-sm">
+          <h2 className="text-lg font-semibold">An error occurred while fetching data</h2>
+          <p className="mt-3 text-sm leading-relaxed">{error}</p>
           <button
             onClick={loadSites}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            className="mt-4 inline-flex items-center gap-2 rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-red-700"
           >
             Try again
           </button>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
   if (showInitialLoader) {
     return (
-      <div className="p-4 max-w-6xl mx-auto">
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 text-center text-gray-600">
+      <PageContainer
+        meta="WordPress platform"
+        title="Loading WordPress data"
+        description="Fetching the latest website list so you can confirm updates."
+        maxWidth="max-w-4xl"
+      >
+        <div className="rounded-3xl border border-white/60 bg-white/80 p-8 text-center text-slate-600 shadow-sm">
           Loading WordPress website data...
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
@@ -931,29 +942,56 @@ const WpDashboard = () => {
   const currentPageSites = getCurrentPageSites();
   const pageTitle = currentPage === 'confirmed' ? 'Confirmed websites' : 'WordPress Maintenance Dashboard';
   const pageIcon = currentPage === 'confirmed' ? '✅' : '🚀';
+  const totalSites = sites.length;
+  const confirmedCount = sites.filter((site) => site.isConfirmed).length;
+  const pendingCount = Math.max(totalSites - confirmedCount, 0);
 
   // Dashboard and Confirmed Pages
   return (
-    <div className="p-4 max-w-6xl mx-auto space-y-4">
-      <h1 className="text-3xl font-bold text-center mb-6">
-        {pageIcon} {pageTitle}
-      </h1>
-
+    <PageContainer
+      meta="WordPress platform"
+      title={`${pageIcon} ${pageTitle}`}
+      description="Manage WordPress environments with an interface that mirrors the rest of the maintenance suite. Confirm updates, capture notes, and keep weekly resets on track."
+      actions={(
+        <>
+          <div className="rounded-full bg-white/80 px-5 py-2 text-sm font-medium text-slate-600 shadow-sm">
+            {totalSites} tracked • {confirmedCount} confirmed • {pendingCount} pending
+          </div>
+          <button
+            type="button"
+            onClick={loadSites}
+            disabled={isLoading}
+            className="inline-flex items-center gap-2 rounded-full border border-[#316fb7] bg-white/80 px-5 py-2 text-sm font-semibold text-[#316fb7] shadow-sm transition hover:bg-[#316fb7]/10 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isLoading ? "Refreshing..." : "Refresh data"}
+          </button>
+          {currentPage === 'dashboard' && (
+            <button
+              onClick={goToAddPage}
+              className="inline-flex items-center gap-2 rounded-full bg-[#316fb7] px-5 py-2 text-sm font-semibold text-white shadow transition hover:bg-[#244f8a]"
+            >
+              ➕ Add website
+            </button>
+          )}
+        </>
+      )}
+      maxWidth="max-w-6xl"
+    >
       {banner && (
         <div
-          className={`flex items-start justify-between gap-3 rounded-lg border px-4 py-3 text-sm ${
+          className={`flex items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-sm shadow-sm ${
             banner.type === 'error'
-              ? 'bg-red-50 border-red-200 text-red-700'
+              ? 'border-red-200 bg-red-50/90 text-red-700'
               : banner.type === 'success'
-                ? 'bg-green-50 border-green-200 text-green-700'
-                : 'bg-blue-50 border-blue-200 text-blue-700'
+                ? 'border-emerald-200 bg-emerald-50/90 text-emerald-700'
+                : 'border-blue-200 bg-blue-50/90 text-[#245c94]'
           }`}
         >
           <span>{banner.message}</span>
           <button
             type="button"
             onClick={dismissBanner}
-            className="text-xs font-medium underline hover:opacity-80"
+            className="text-xs font-semibold text-current underline hover:opacity-80"
           >
             Close
           </button>
@@ -961,18 +999,18 @@ const WpDashboard = () => {
       )}
 
       {hasFetchedInitialSites && isLoading && (
-        <div className="bg-blue-50 border border-blue-200 text-blue-700 rounded-lg p-3 text-center text-sm">
+        <div className="rounded-2xl border border-[#316fb7]/20 bg-[#316fb7]/5 p-4 text-center text-sm text-[#245c94] shadow-sm">
           Refreshing the latest data...
         </div>
       )}
 
       {hasFetchedInitialSites && error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4">
-          <div className="font-semibold mb-1">Unable to refresh the latest data</div>
-          <p className="text-sm mb-3">{error}</p>
+        <div className="rounded-2xl border border-red-200 bg-red-50/90 p-5 text-sm text-red-700 shadow-sm">
+          <div className="font-semibold">Unable to refresh the latest data</div>
+          <p className="mt-2 leading-relaxed">{error}</p>
           <button
             onClick={loadSites}
-            className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+            className="mt-4 inline-flex items-center gap-2 rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-red-700"
           >
             Try again
           </button>
@@ -980,95 +1018,71 @@ const WpDashboard = () => {
       )}
 
       {/* Navigation Tabs */}
-      <div className="flex justify-center mb-6">
-        <div className="bg-gray-100 p-1 rounded-lg flex gap-1">
+      <div className="flex justify-center">
+        <div className="inline-flex items-center gap-1 rounded-full bg-white/70 p-1 shadow-inner">
           <button
             onClick={() => setCurrentPage('dashboard')}
-            className={`px-4 py-2 rounded-md font-medium transition-colors ${
-              currentPage === 'dashboard' 
-                ? 'bg-white text-blue-600 shadow-sm' 
-                : 'text-gray-600 hover:text-gray-800'
+            className={`px-5 py-2 text-sm font-semibold transition ${
+              currentPage === 'dashboard'
+                ? 'rounded-full bg-[#316fb7] text-white shadow'
+                : 'rounded-full text-slate-600 hover:text-[#244f8a]'
             }`}
           >
-            🏠 Dashboard ({sites.filter(s => !s.isConfirmed).length})
+            🏠 Dashboard ({pendingCount})
           </button>
           <button
             onClick={goToConfirmedPage}
-            className={`px-4 py-2 rounded-md font-medium transition-colors ${
-              currentPage === 'confirmed' 
-                ? 'bg-white text-green-600 shadow-sm' 
-                : 'text-gray-600 hover:text-gray-800'
+            className={`px-5 py-2 text-sm font-semibold transition ${
+              currentPage === 'confirmed'
+                ? 'rounded-full bg-emerald-500 text-white shadow'
+                : 'rounded-full text-slate-600 hover:text-[#244f8a]'
             }`}
           >
-            ✅ Confirmed ({sites.filter(s => s.isConfirmed).length})
+            ✅ Confirmed ({confirmedCount})
           </button>
         </div>
       </div>
 
       {/* Search and Add Button */}
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
-        <div className="flex-1 max-w-md">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search websites... (name or URL)"
-              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <span className="text-gray-400">🔍</span>
-            </div>
-          </div>
+      <div className="flex flex-col gap-4 rounded-3xl border border-white/60 bg-white/80 p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-sm">
+          <input
+            type="text"
+            placeholder="Search websites by name or URL"
+            className="w-full rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 pl-11 text-sm text-slate-700 shadow-sm outline-none transition focus:border-[#316fb7] focus:ring-2 focus:ring-[#316fb7]/20"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-lg">🔍</div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={loadSites}
-            disabled={isLoading}
-            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-              isLoading
-                ? 'bg-blue-100 text-blue-300 cursor-not-allowed'
-                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-            }`}
-          >
-            🔄 Refresh data
-          </button>
-          <div className="text-sm text-gray-600">
-            {currentPageSites.length} websites | Click to view details
-          </div>
-          {currentPage === 'dashboard' && (
-            <button
-              onClick={goToAddPage}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors flex items-center gap-2"
-            >
-              ➕ Add new website
-            </button>
-          )}
+        <div className="flex flex-wrap items-center justify-end gap-3 text-sm text-slate-600">
+          <span className="rounded-full bg-slate-100/80 px-4 py-2">
+            {currentPageSites.length} websites listed
+          </span>
         </div>
       </div>
 
       {/* Sites List */}
       {currentPageSites.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-          <div className="text-6xl mb-4">
+        <div className="rounded-3xl border border-dashed border-slate-200 bg-white/70 p-12 text-center shadow-sm">
+          <div className="text-6xl">
             {searchTerm ? '🔍' : currentPage === 'confirmed' ? '✅' : '📭'}
           </div>
-          <div className="text-xl font-medium text-gray-600 mb-2">
-            {searchTerm 
-              ? 'No websites match your search' 
-              : currentPage === 'confirmed' 
-                ? 'No confirmed websites yet' 
+          <div className="mt-4 text-lg font-semibold text-slate-700">
+            {searchTerm
+              ? 'No websites match your search'
+              : currentPage === 'confirmed'
+                ? 'No confirmed websites yet'
                 : 'No websites in the system yet'
             }
           </div>
-          <div className="text-gray-500">
-            {searchTerm 
-              ? 'Try a different search term or check the spelling' 
-              : currentPage === 'confirmed' 
-                ? 'Confirmed website updates will appear here' 
-                : 'Start by adding the first website'
+          <div className="mt-2 text-sm text-slate-500">
+            {searchTerm
+              ? 'Try a different search term or check the spelling.'
+              : currentPage === 'confirmed'
+                ? 'Confirmed website updates will appear here.'
+                : 'Start by adding the first website.'
             }
           </div>
         </div>
@@ -1352,7 +1366,7 @@ const WpDashboard = () => {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }
 

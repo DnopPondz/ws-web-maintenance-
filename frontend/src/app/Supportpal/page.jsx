@@ -8,6 +8,7 @@ import {
   updateSupportpalSite,
   deleteSupportpalSite,
 } from "../lib/api";
+import PageContainer from "../components/PageContainer";
 
 let englishDateFormatter;
 
@@ -641,28 +642,38 @@ const SpDashboard = () => {
 
   if (error && !hasFetchedInitialSites) {
     return (
-      <div className="p-4 max-w-3xl mx-auto space-y-4">
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-6 text-center">
-          <h1 className="text-xl font-semibold mb-2">An error occurred while fetching data</h1>
-          <p className="text-sm mb-4">{error}</p>
+      <PageContainer
+        meta="SupportPal platform"
+        title="Unable to load SupportPal servers"
+        description="There was a problem reaching the SupportPal API. Refresh to retry the request."
+        maxWidth="max-w-3xl"
+      >
+        <div className="rounded-3xl border border-red-200 bg-red-50/90 p-6 text-center text-red-700 shadow-sm">
+          <h2 className="text-lg font-semibold">An error occurred while fetching data</h2>
+          <p className="mt-3 text-sm leading-relaxed">{error}</p>
           <button
             onClick={loadSites}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            className="mt-4 inline-flex items-center gap-2 rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-red-700"
           >
             Try again
           </button>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
   if (showInitialLoader) {
     return (
-      <div className="p-4 max-w-6xl mx-auto">
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 text-center text-gray-600">
+      <PageContainer
+        meta="SupportPal platform"
+        title="Loading SupportPal data"
+        description="Fetching the latest server list so you can confirm updates."
+        maxWidth="max-w-4xl"
+      >
+        <div className="rounded-3xl border border-white/60 bg-white/80 p-8 text-center text-slate-600 shadow-sm">
           Loading SupportPal server data...
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
@@ -685,20 +696,25 @@ const SpDashboard = () => {
     const saveButtonText = isEditing ? "💾 Save changes" : "➕ Add server";
 
     return (
-      <div className="p-4 max-w-4xl mx-auto">
-        <div className="bg-white shadow-lg rounded-lg border border-gray-200 overflow-hidden">
-          <div className="bg-blue-50 px-6 py-4 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-bold text-gray-800">
-                {pageIcon} {pageTitle}
-              </h1>
-              <button
-                onClick={goBackToDashboard}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium transition-colors"
-              >
-                ← Back to dashboard
-              </button>
-            </div>
+      <PageContainer
+        meta="SupportPal platform"
+        title={`${pageIcon} ${pageTitle}`}
+        description="Provide the latest SupportPal server details, including version updates and maintenance notes."
+        maxWidth="max-w-4xl"
+        actions={(
+          <button
+            onClick={goBackToDashboard}
+            className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#316fb7] shadow-sm transition hover:bg-[#316fb7]/10"
+          >
+            ← Back to dashboard
+          </button>
+        )}
+      >
+        <div className="rounded-3xl border border-white/60 bg-white/80 shadow-lg overflow-hidden">
+          <div className="bg-[#316fb7]/10 px-6 py-4 border-b border-[#316fb7]/20">
+            <p className="text-sm font-medium text-[#244f8a]">
+              Keep server records and monthly confirmations aligned.
+            </p>
           </div>
 
           <div className="p-6 space-y-6">
@@ -857,120 +873,123 @@ const SpDashboard = () => {
             </div>
           </div>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
   const currentPageSites = getCurrentPageSites();
   const pageTitle =
     currentPage === "confirmed" ? "Confirmed servers" : "SupportPal Maintenance Dashboard";
-  const pageIcon = currentPage === "confirmed" ? "✅" : "🎫";
+  const pageIcon = currentPage === "confirmed" ? "" : "";
+  const totalSites = sites.length;
+  const confirmedCount = sites.filter((site) => site.isConfirmed).length;
+  const pendingCount = Math.max(totalSites - confirmedCount, 0);
 
   return (
-    <div className="p-4 max-w-6xl mx-auto space-y-4">
-      <h1 className="text-3xl font-bold text-center mb-6">
-        {pageIcon} {pageTitle}
-      </h1>
-
+    <PageContainer
+      meta="SupportPal platform"
+      title={`${pageIcon} ${pageTitle}`}
+      description="Manage SupportPal infrastructure with the same visual language as the rest of the suite. Confirm updates, document maintenance notes, and stay ready for the monthly reset."
+      actions={(
+        <>
+          <div className="rounded-full bg-white/80 px-5 py-2 text-sm font-medium text-slate-600 shadow-sm">
+            {totalSites} tracked • {confirmedCount} confirmed • {pendingCount} pending
+          </div>
+          <button
+            onClick={() => loadSites({ showLoader: true })}
+            disabled={isLoading}
+            className="inline-flex items-center gap-2 rounded-full border border-[#316fb7] bg-white/80 px-5 py-2 text-sm font-semibold text-[#316fb7] shadow-sm transition hover:bg-[#316fb7]/10 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isLoading ? "Refreshing..." : "Refresh data"}
+          </button>
+          {currentPage === "dashboard" && (
+            <button
+              onClick={goToAddPage}
+              className="inline-flex items-center gap-2 rounded-full bg-[#316fb7] px-5 py-2 text-sm font-semibold text-white shadow transition hover:bg-[#244f8a]"
+            >
+              ➕ Add server
+            </button>
+          )}
+        </>
+      )}
+      maxWidth="max-w-6xl"
+    >
       {banner && (
         <div
-          className={`px-4 py-3 rounded-lg border flex items-start justify-between gap-4 ${
+          className={`flex items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-sm shadow-sm ${
             banner.type === "success"
-              ? "bg-green-50 border-green-200 text-green-800"
+              ? "border-emerald-200 bg-emerald-50/90 text-emerald-700"
               : banner.type === "error"
-                ? "bg-red-50 border-red-200 text-red-700"
-                : "bg-blue-50 border-blue-200 text-blue-700"
+                ? "border-red-200 bg-red-50/90 text-red-700"
+                : "border-blue-200 bg-blue-50/90 text-[#245c94]"
           }`}
         >
           <span>{banner.message}</span>
-          <button onClick={dismissBanner} className="text-sm underline">
+          <button onClick={dismissBanner} className="text-xs font-semibold text-current underline hover:opacity-80">
             Close
           </button>
         </div>
       )}
 
       {error && hasFetchedInitialSites && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4">
-          <div className="font-medium mb-2">An error occurred while loading data</div>
-          <div className="text-sm mb-3">{error}</div>
+        <div className="rounded-2xl border border-red-200 bg-red-50/90 p-5 text-sm text-red-700 shadow-sm">
+          <div className="font-semibold">An error occurred while loading data</div>
+          <p className="mt-2 leading-relaxed">{error}</p>
           <button
             onClick={() => loadSites({ showLoader: true })}
-            className="px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+            className="mt-4 inline-flex items-center gap-2 rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-red-700"
           >
             Reload
           </button>
         </div>
       )}
 
-      <div className="flex justify-center mb-6">
-        <div className="bg-gray-100 p-1 rounded-lg flex gap-1">
+      <div className="flex justify-center">
+        <div className="inline-flex items-center gap-1 rounded-full bg-white/70 p-1 shadow-inner">
           <button
             onClick={() => setCurrentPage("dashboard")}
-            className={`px-4 py-2 rounded-md font-medium transition-colors ${
+            className={`px-5 py-2 text-sm font-semibold transition ${
               currentPage === "dashboard"
-                ? "bg-white text-blue-600 shadow-sm"
-                : "text-gray-600 hover:text-gray-800"
+                ? "rounded-full bg-[#316fb7] text-white shadow"
+                : "rounded-full text-slate-600 hover:text-[#244f8a]"
             }`}
           >
-            🏠 Dashboard ({sites.filter((s) => !s.isConfirmed).length})
+            🏠 Dashboard ({pendingCount})
           </button>
           <button
             onClick={goToConfirmedPage}
-            className={`px-4 py-2 rounded-md font-medium transition-colors ${
+            className={`px-5 py-2 text-sm font-semibold transition ${
               currentPage === "confirmed"
-                ? "bg-white text-green-600 shadow-sm"
-                : "text-gray-600 hover:text-gray-800"
+                ? "rounded-full bg-emerald-500 text-white shadow"
+                : "rounded-full text-slate-600 hover:text-[#244f8a]"
             }`}
           >
-            ✅ Confirmed ({sites.filter((s) => s.isConfirmed).length})
+            ✅ Confirmed ({confirmedCount})
           </button>
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
-        <div className="flex-1 max-w-md">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search servers... (name or URL)"
-              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <span className="text-gray-400">🔍</span>
-            </div>
-          </div>
+      <div className="flex flex-col gap-4 rounded-3xl border border-white/60 bg-white/80 p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-sm">
+          <input
+            type="text"
+            placeholder="Search servers by name or URL"
+            className="w-full rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 pl-11 text-sm text-slate-700 shadow-sm outline-none transition focus:border-[#316fb7] focus:ring-2 focus:ring-[#316fb7]/20"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-lg">🔍</div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => loadSites({ showLoader: true })}
-            disabled={isLoading}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
-              isLoading
-                ? "bg-blue-100 text-blue-300 cursor-not-allowed border-blue-100"
-                : "bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
-            }`}
-          >
-            🔄 Refresh data
-          </button>
-          <div className="text-sm text-gray-600">
-            {currentPageSites.length} servers | Click to view details
-          </div>
-          {currentPage === "dashboard" && (
-            <button
-              onClick={goToAddPage}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors flex items-center gap-2"
-            >
-              ➕ Add new server
-            </button>
-          )}
+        <div className="flex flex-wrap items-center justify-end gap-3 text-sm text-slate-600">
+          <span className="rounded-full bg-slate-100/80 px-4 py-2">
+            {currentPageSites.length} servers listed
+          </span>
         </div>
       </div>
 
       {currentPageSites.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+        <div className="rounded-3xl border border-dashed border-slate-200 bg-white/70 p-12 text-center shadow-sm">
           <div className="text-6xl mb-4">
             {searchTerm ? "🔍" : currentPage === "confirmed" ? "✅" : "🖥️"}
           </div>
@@ -1221,7 +1240,8 @@ const SpDashboard = () => {
           </div>
         </div>
       )}
-    </div>
+   
+    </PageContainer>
   );
 };
 

@@ -1,34 +1,45 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState, useCallback } from 'react';
-import { logoutUser } from '../lib/api';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { logoutUser } from "../lib/api";
+import { useRouter } from "next/navigation";
 
-export default function NavSidebar({ isOpen, setIsOpen }) {
-  const [isDashboardOpen, setIsDashboardOpen] = useState(false);
+export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
+  const [expandedGroups, setExpandedGroups] = useState(() => ({ system: !isDesktop }));
   const [user, setUser] = useState(null);
   const [logoutError, setLogoutError] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
+  const fullName = [user?.firstname, user?.lastname]
+    .filter((part) => typeof part === "string" && part.trim().length > 0)
+    .join(" ");
+  const displayName = fullName || user?.username || user?.email || "User";
+  const displayInitial = displayName ? displayName.charAt(0).toUpperCase() : "?";
+  const isAdmin = typeof user?.role === "string" && user.role.toLowerCase() === "admin";
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
+    const storedUser = localStorage.getItem("user");
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error("Unable to parse stored user:", error);
+        localStorage.removeItem("user");
+      }
     }
   }, []);
 
   const clearSessionAndRedirect = useCallback(() => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
-    router.push('/login');
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
+    localStorage.removeItem("user");
+    router.push("/login");
   }, [router]);
 
   const handleLogout = async () => {
     setLogoutError(null);
 
-    const refreshToken = localStorage.getItem('refreshToken');
+    const refreshToken = localStorage.getItem("refreshToken");
     if (!refreshToken) {
       clearSessionAndRedirect();
       return;
@@ -39,8 +50,8 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
       await logoutUser(refreshToken);
       clearSessionAndRedirect();
     } catch (err) {
-      console.error('Logout failed:', err);
-      setLogoutError(err.message || 'Unable to log out. Please try again.');
+      console.error("Logout failed:", err);
+      setLogoutError(err.message || "Unable to log out. Please try again.");
     } finally {
       setIsLoggingOut(false);
     }
@@ -50,172 +61,177 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
     clearSessionAndRedirect();
   };
 
+  useEffect(() => {
+    setExpandedGroups((previous) => ({
+      ...previous,
+      system: !isDesktop || previous.system,
+    }));
+  }, [isDesktop]);
+
+  useEffect(() => {
+    if (isDesktop && !isOpen) {
+      setExpandedGroups((previous) => ({
+        ...previous,
+        system: false,
+      }));
+    }
+  }, [isDesktop, isOpen]);
+
+  const handleNavigate = useCallback(() => {
+    if (!isDesktop) {
+      setIsOpen(false);
+    }
+  }, [isDesktop, setIsOpen]);
+
+  const navigationItems = useMemo(
+    () => [
+      { id: "home", href: "/", icon: "home", label: "Home" },
+      { id: "dashboard", href: "/dashboard", icon: "insights", label: "Dashboard" },
+      {
+        id: "system",
+        icon: "grid_view",
+        label: "System",
+        children: [
+          { id: "wordpress", href: "/WordPress", icon: "language", label: "WordPress" },
+          { id: "supportpal", href: "/Supportpal", icon: "support_agent", label: "SupportPal" },
+        ],
+      },
+      isAdmin
+        ? { id: "admin", href: "/admin", icon: "group", label: "Admin" }
+        : null,
+    ].filter(Boolean),
+    [isAdmin],
+  );
+
+  const toggleSidebar = () => {
+    setIsOpen((prev) => !prev);
+  };
+
+  const toggleButtonClasses = [
+    "fixed top-4 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-[#132a4b] text-white shadow-lg transition-all duration-200 lg:hidden",
+    "hover:border-white/40 hover:bg-[#1b3762] focus:outline-none focus:ring-2 focus:ring-white/30",
+  ].join(" ");
+
+  const asideClasses = [
+    "fixed top-0 left-0 z-40 flex h-screen flex-col overflow-hidden bg-gradient-to-b from-[#16294d] via-[#102347] to-[#0c1834] text-white shadow-2xl transition-[width,transform] duration-300",
+    isDesktop
+      ? isOpen
+        ? "w-64"
+        : "w-20"
+      : `w-64 ${isOpen ? "translate-x-0" : "-translate-x-full"}`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <>
       {/* Toggle Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-4 left-4 z-50 bg-[#316fb7] hover:bg-[#7a98bb] text-white p-3 rounded-md focus:outline-none focus:ring-0 transition-colors duration-200"
+        onClick={toggleSidebar}
+        className={toggleButtonClasses}
         aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
+        aria-expanded={isOpen}
       >
-        <svg
-          className="w-5 h-5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          {isOpen ? (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          ) : (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 5l7 7-7 7"
-            />
-          )}
-        </svg>
+        <span className="material-icons text-xl">
+          {isOpen ? "chevron_left" : "menu"}
+        </span>
       </button>
       {/* Overlay for mobile */}
-      {isOpen && (
+      {!isDesktop && isOpen && (
         <div
-          className="fixed inset-0 bg-white bg-opacity-50 z-[-1] "
+          className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm"
           onClick={() => setIsOpen(false)}
         />
       )}
 
       {/* Sidebar */}
-      <aside
-        className={`fixed top-0 left-0 h-screen bg-[#316fb7] text-white flex flex-col transition-all duration-300 z-40 ${
-          isOpen ? "w-64" : "w-16"
-        }`}
-      >
-        {/* Header */}
-        <div className="p-4 ml-10 mt-2 ">
-          <h2
-            className={`text-xl font-bold whitespace-nowrap overflow-hidden transition-all duration-300 ${
-              isOpen ? "opacity-100 ml-2" : "opacity-0 w-0"
-            }`}
-          >
-            Admin Panel
-          </h2>
-        </div>
-
-         <div className="p-2 ml-5">
-  {user ? (
-    <span
-      className="text-sm bg-[#5c8bc0] rounded-4xl hover:bg-[#688db8] cursor-pointer px-3 py-1 block w-fit transition-all duration-300"
-      title={`${user.firstname} ${user.lastname}`} // Tooltip ตอน hover
-    >
-      {isOpen
-        ? `${user.firstname} ${user.lastname}`
-        : user.firstname.charAt(0)}
-    </span>
-  ) : (
-    <span className="text-sm">Not logged in</span>
-  )}
-</div>
-
-        {/* Navigation */}
-        <nav className="flex-1 p-4">
-          <div className="space-y-2">
-            <NavLink href="/" icon="home" label="Home" isOpen={isOpen} />
-            <NavLink
-              href="/dashboard"
-              icon="insights"
-              label="Dashboard"
-              isOpen={isOpen}
-            />
-
-            {/* Dashboard with Submenu */}
-            <div>
-              <button
-                onClick={() => setIsDashboardOpen(!isDashboardOpen)}
-                className="w-full flex items-center p-3 rounded-lg transition-all duration-200 hover:bg-[#7a98bb] text-left"
-              >
-                <span
-                  className={`material-icons text-xl transition-all duration-300 ${
-                    isOpen ? "mr-3" : "mx-auto"
-                  }`}
+      <aside className={asideClasses}>
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="px-5 pt-8 pb-6">
+            <div className="flex items-center justify-between">
+              <div className={`text-sm font-semibold tracking-wide ${isDesktop && !isOpen ? "sr-only" : "uppercase text-white/70"}`}>
+                Control Panel
+              </div>
+              {isDesktop && (
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  className="hidden h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white/5 text-white transition-colors duration-200 hover:bg-white/10 lg:flex"
+                  aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
+                  aria-expanded={isOpen}
                 >
-                  dashboard
-                </span>
-                <span
-                  className={`whitespace-nowrap transition-all duration-300 flex-1 ${
-                    isOpen
-                      ? "opacity-100 translate-x-0"
-                      : "opacity-0 -translate-x-2 w-0 overflow-hidden"
-                  }`}
-                >
-                  System
-                </span>
-                {isOpen && (
-                  <span
-                    className={`material-icons text-sm transition-transform duration-200 ${
-                      isDashboardOpen ? "rotate-180" : ""
-                    }`}
-                  >
-                    keyboard_arrow_down
+                  <span className="material-icons text-base">
+                    {isOpen ? "chevron_left" : "chevron_right"}
                   </span>
-                )}
-              </button>
-
-              {/* Submenu */}
-              {isOpen && (
-                <div
-                  className={`ml-6 mt-1 space-y-1 overflow-hidden transition-all duration-300 ${
-                    isDashboardOpen
-                      ? "max-h-32 opacity-100"
-                      : "max-h-0 opacity-0"
-                  }`}
-                >
-                  <Link
-                    href="/WordPress"
-                    className="block p-2 text-sm text-gray-300 hover:text-white hover:bg-[#7a98bb] rounded transition-colors duration-200"
-                  >
-                    WordPress
-                  </Link>
-                  <Link
-                    href="/Supportpal"
-                    className="block p-2 text-sm text-gray-300 hover:text-white hover:bg-[#7a98bb] rounded transition-colors duration-200"
-                  >
-                    SupportPal
-                  </Link>
-                </div>
+                </button>
               )}
             </div>
 
-            <NavLink
-              href="/admin"
-              icon="people"
-              label="Admin"
-              isOpen={isOpen}
-            />
+            <div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20 text-lg font-semibold uppercase">
+                  {displayInitial}
+                </div>
+                {(isOpen || !isDesktop) && (
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-white">{displayName}</p>
+                    <p className="text-xs text-white/60">{isAdmin ? "Administrator" : "Member"}</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-        </nav>
 
-        {/* Footer */}
-        <div className="p-4 text-center border-t border-gray-700 space-y-2">
+          <nav className="flex-1 overflow-y-auto px-3 pb-8" aria-label="Main navigation">
+            <ul className="space-y-2">
+              {navigationItems.map((item) =>
+                item.children ? (
+                  <NavGroup
+                    key={item.id}
+                    item={item}
+                    isOpen={isOpen}
+                    isDesktop={isDesktop}
+                    isExpanded={Boolean(expandedGroups[item.id])}
+                    onToggle={() =>
+                      setExpandedGroups((previous) => ({
+                        ...previous,
+                        [item.id]: !previous[item.id],
+                      }))
+                    }
+                    onNavigate={handleNavigate}
+                  />
+                ) : (
+                  <li key={item.id}>
+                    <NavLink
+                      href={item.href}
+                      icon={item.icon}
+                      label={item.label}
+                      isOpen={isOpen}
+                      onNavigate={handleNavigate}
+                    />
+                  </li>
+                ),
+              )}
+            </ul>
+          </nav>
+        </div>
+
+        <div className="border-t border-white/10 px-4 py-5">
           <button
             type="button"
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="w-full py-2 rounded-md text-sm font-medium text-red-200 hover:text-red-100 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 text-sm font-semibold text-red-100 transition-colors duration-200 hover:border-white/30 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isLoggingOut ? 'Logging out...' : 'Logout'}
+            {isLoggingOut ? "Logging out..." : "Logout"}
           </button>
           {logoutError && (
-            <div className="text-xs text-red-100 bg-red-500/20 rounded-md px-3 py-2 space-y-1" aria-live="polite">
+            <div className="mt-3 rounded-lg border border-red-400/30 bg-red-500/20 px-3 py-2 text-xs text-red-100" aria-live="polite">
               <p>{logoutError}</p>
               <button
                 type="button"
                 onClick={handleForceLogout}
-                className="underline text-red-100 hover:text-red-50"
+                className="mt-1 inline-flex items-center text-[11px] font-semibold underline hover:text-red-50"
               >
                 Force logout
               </button>
@@ -227,30 +243,140 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
   );
 }
 
-// Extracted NavLink component for better maintainability
-function NavLink({ href, icon, label, isOpen, className = "" }) {
-  const baseClasses =
-    "flex items-center p-3 rounded-lg transition-all duration-200 hover:bg-[#7a98bb]";
-  const classes = className ? `${baseClasses} ${className}` : baseClasses;
+function NavLink({
+  href,
+  icon,
+  label,
+  isOpen,
+  onNavigate,
+  isChild = false,
+  showLabel,
+}) {
+  const shouldShowLabel = typeof showLabel === "boolean" ? showLabel : isOpen;
+  const iconName = icon || (isChild ? "chevron_right" : "radio_button_unchecked");
+  const baseClasses = [
+    "group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150",
+    isChild ? "text-white/80 hover:bg-white/10" : "text-white hover:bg-white/10",
+    shouldShowLabel ? "justify-start gap-3" : "justify-center",
+    isChild && shouldShowLabel ? "pl-8" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <Link href={href} className={classes}>
+    <Link
+      href={href}
+      className={baseClasses}
+      onClick={onNavigate}
+      title={label}
+      aria-label={!shouldShowLabel ? label : undefined}
+    >
       <span
-        className={`material-icons text-xl transition-all duration-300 ${
-          isOpen ? "mr-3" : "mx-auto"
-        }`}
+        className={`material-icons ${
+          isChild && shouldShowLabel ? "text-base text-white/60" : "text-lg"
+        } transition-transform duration-200`}
+        aria-hidden
       >
-        {icon}
+        {iconName}
       </span>
-      <span
-        className={`whitespace-nowrap transition-all duration-300 ${
-          isOpen
-            ? "opacity-100 translate-x-0"
-            : "opacity-0 -translate-x-2 w-0 overflow-hidden"
-        }`}
-      >
-        {label}
-      </span>
+      {shouldShowLabel && <span className="flex-1 truncate text-left">{label}</span>}
     </Link>
+  );
+}
+
+function NavGroup({ item, isOpen, isDesktop, isExpanded, onToggle, onNavigate }) {
+  const isCollapsedDesktop = isDesktop && !isOpen;
+  const shouldShowChildren = isCollapsedDesktop
+    ? true
+    : isDesktop
+    ? isExpanded && isOpen
+    : true;
+
+  const parentButtonClasses = [
+    "flex w-full items-center rounded-lg px-3 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30",
+    isCollapsedDesktop ? "justify-center" : "justify-between",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const showParentLabel = !isCollapsedDesktop && (isOpen || !isDesktop);
+
+  const collapsedChildren = isCollapsedDesktop && isExpanded
+    ? item.children.map((child) => (
+        <NavLink
+          key={child.id}
+          href={child.href}
+          icon={child.icon}
+          label={child.label}
+          isOpen={false}
+          onNavigate={onNavigate}
+          showLabel={false}
+        />
+      ))
+    : null;
+
+  const expandedChildren = !isCollapsedDesktop && shouldShowChildren
+    ? item.children.map((child) => (
+        <NavLink
+          key={child.id}
+          href={child.href}
+          icon={child.icon}
+          label={child.label}
+          isOpen={isOpen}
+          onNavigate={onNavigate}
+          isChild
+          showLabel={isOpen || !isDesktop}
+        />
+      ))
+    : null;
+
+  return (
+    <li>
+      <div
+        className={`rounded-xl border border-white/10 bg-white/5 p-2 transition-all duration-200 ${
+          isCollapsedDesktop && isExpanded ? "pb-3" : ""
+        }`}
+      >
+        <button
+          type="button"
+          onClick={isDesktop ? onToggle : undefined}
+          aria-expanded={isDesktop ? isExpanded : true}
+          aria-label={isCollapsedDesktop ? item.label : undefined}
+          title={item.label}
+          className={`${parentButtonClasses} ${
+            isCollapsedDesktop && isExpanded ? "bg-white/10" : ""
+          }`}
+        >
+          <span className="flex items-center gap-3">
+            <span className="material-icons text-lg" aria-hidden>
+              {item.icon}
+            </span>
+            {showParentLabel && <span className="truncate">{item.label}</span>}
+          </span>
+          {isDesktop && isOpen && (
+            <span
+              className={`material-icons text-base transition-transform duration-200 ${
+                isCollapsedDesktop
+                  ? isExpanded
+                    ? "rotate-45"
+                    : ""
+                  : isExpanded
+                  ? "-rotate-180"
+                  : ""
+              }`}
+            >
+              expand_more
+            </span>
+          )}
+        </button>
+
+        {!isCollapsedDesktop && expandedChildren && (
+          <div className={`space-y-1 ${isDesktop ? "mt-2" : "mt-3"}`}>{expandedChildren}</div>
+        )}
+      </div>
+      {isCollapsedDesktop && collapsedChildren && (
+        <div className="mt-3 space-y-1">{collapsedChildren}</div>
+      )}
+    </li>
   );
 }
