@@ -136,10 +136,10 @@ const cloneSite = (site) => {
   return cloneSites([site])[0];
 };
 
-// NOTE: ปรับค่า MONTHLY_RESET_* เพื่อกำหนดเวลาการรีเซ็ตสถานะการยืนยันสำหรับ SupportPal
-const MONTHLY_RESET_DAY = 1; // วันที่ต้องการรีเซ็ต (1 = วันที่ 1 ของเดือน)
-const MONTHLY_RESET_HOUR = 0; // ชั่วโมงที่ต้องการให้รีเซ็ต (24 ชั่วโมง)
-const MONTHLY_RESET_MINUTE = 0; // นาทีที่ต้องการให้รีเซ็ต
+// NOTE: Adjust MONTHLY_RESET_* to control when SupportPal confirmation states are reset
+const MONTHLY_RESET_DAY = 1; // Day to perform the reset (1 = first day of the month)
+const MONTHLY_RESET_HOUR = 0; // Hour to perform the reset (24-hour clock)
+const MONTHLY_RESET_MINUTE = 0; // Minute to perform the reset
 
 const SpDashboard = () => {
   const [sites, setSites] = useState([]);

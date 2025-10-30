@@ -22,7 +22,7 @@ export default function RootLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
 
-  // หน้าที่ไม่ต้องการ Sidebar และไม่ต้องการ AuthGuard
+  // Pages that do not require the sidebar or authentication guard
   const noSidebarPages = ['/login', '/register', '/forgot-password'];
   const shouldShowSidebar = !noSidebarPages.includes(pathname);
   const shouldProtect = !noSidebarPages.includes(pathname);

@@ -269,7 +269,7 @@ router.delete('/del/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// API สำหรับ Refresh Token
+// API endpoint for refreshing tokens
 router.post('/refresh', async (req, res) => {
   const { refreshToken } = req.body;
 
