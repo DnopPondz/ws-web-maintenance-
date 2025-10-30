@@ -132,6 +132,29 @@ const normaliseChangeDetails = (rawDetails) => {
     .filter((detail) => detail.label);
 };
 
+const shouldHideChangeSummary = (summary) => {
+  if (typeof summary !== "string") {
+    return false;
+  }
+
+  const trimmed = summary.trim();
+
+  if (!trimmed) {
+    return true;
+  }
+
+  const segments = trimmed
+    .split(";")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+
+  if (segments.length === 0) {
+    return false;
+  }
+
+  return segments.every((segment) => segment.includes("→"));
+};
+
 const buildWordpressVersionDetails = (site) => {
   const detailMap = new Map();
 
@@ -250,11 +273,10 @@ const SUPPORTPAL_VERSION_LABELS = {
 
 const normaliseSupportpalVersion = (site) => {
   const labels = SUPPORTPAL_VERSION_LABELS;
-  const seenKeys = new Set();
-  const entries = [];
+  const entries = new Map();
 
   const addEntry = (key, label, value) => {
-    if (value === undefined || value === null || seenKeys.has(key)) {
+    if (value === undefined || value === null) {
       return;
     }
 
@@ -264,9 +286,14 @@ const normaliseSupportpalVersion = (site) => {
       return;
     }
 
-    seenKeys.add(key);
-    entries.push({
-      label,
+    const normalisedLabel =
+      typeof label === "string" && label.trim().length > 0
+        ? label.trim()
+        : key.charAt(0).toUpperCase() + key.slice(1);
+
+    entries.set(key, {
+      key,
+      label: normalisedLabel,
       value: trimmed,
     });
   };
@@ -283,19 +310,27 @@ const normaliseSupportpalVersion = (site) => {
   const directVersionValue =
     site?.supportpalVersion ?? site?.supportpal_version ?? site?.version;
 
-  if (
-    !seenKeys.has("supportpal") &&
-    directVersionValue !== undefined &&
-    directVersionValue !== null
-  ) {
+  if (directVersionValue !== undefined && directVersionValue !== null) {
     addEntry("supportpal", labels.supportpal || "SupportPal", directVersionValue);
   }
 
-  if (entries.length === 0) {
+  if (entries.size === 0) {
     return { label: "", details: [] };
   }
 
-  const label = entries
+  const orderedEntries = Array.from(entries.values()).sort((a, b) => {
+    if (a.key === "supportpal" && b.key !== "supportpal") {
+      return -1;
+    }
+
+    if (b.key === "supportpal" && a.key !== "supportpal") {
+      return 1;
+    }
+
+    return 0;
+  });
+
+  const label = orderedEntries
     .map((entry) =>
       [entry.label, entry.value]
         .filter((part) => part && part.length > 0)
@@ -303,7 +338,13 @@ const normaliseSupportpalVersion = (site) => {
     )
     .join(" • ");
 
-  return { label, details: entries };
+  return {
+    label,
+    details: orderedEntries.map(({ label: entryLabel, value }) => ({
+      label: entryLabel,
+      value,
+    })),
+  };
 };
 
 export const normaliseSupportpalSites = (sites = []) =>
@@ -317,6 +358,9 @@ export const normaliseSupportpalSites = (sites = []) =>
     const changeDetectedAtDate = getValidDate(changeDetectedAtSource);
     const versionInfo = normaliseSupportpalVersion(site);
 
+    const changeSummaryRaw =
+      site?.lastChangeSummary ?? site?.changeSummary ?? "";
+
     return {
       id: deriveId(site, index),
       name: site?.name || "Unnamed Server",
@@ -328,8 +372,9 @@ export const normaliseSupportpalSites = (sites = []) =>
       lastChecked,
       lastCheckedDate,
       type: "SupportPal",
-      changeSummary:
-        site?.lastChangeSummary ?? site?.changeSummary ?? "",
+      changeSummary: shouldHideChangeSummary(changeSummaryRaw)
+        ? ""
+        : changeSummaryRaw,
       changeDetails: normaliseChangeDetails(changeDetailsSource),
       changeDetectedAt: changeDetectedAtDate,
       version: versionInfo.label,
