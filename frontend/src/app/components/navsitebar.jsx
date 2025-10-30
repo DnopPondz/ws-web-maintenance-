@@ -333,7 +333,7 @@ function NavGroup({ item, isOpen, isDesktop, isExpanded, onToggle, onNavigate })
   return (
     <li>
       <div
-        className={`rounded-xl border border-white/10 bg-white/5 p-2 transition-all duration-200 ${
+        className={`rounded-xl  p-2 transition-all duration-200 ${
           isCollapsedDesktop && isExpanded ? "pb-3" : ""
         }`}
       >
