@@ -38,6 +38,10 @@ const filterRecords = (records, searchTerm, type) => {
       return true;
     }
 
+    const versionDetailTerms = Array.isArray(record.versionDetails)
+      ? record.versionDetails.flatMap((detail) => [detail.label, detail.value])
+      : [];
+
     const haystack = [
       record.name,
       record.type,
@@ -45,6 +49,7 @@ const filterRecords = (records, searchTerm, type) => {
       record.changeSummary,
       record.maintenanceNotes,
       record.url,
+      ...versionDetailTerms,
     ]
       .filter(Boolean)
       .join(" ")
@@ -117,6 +122,30 @@ const ChangeDetailsList = ({ details }) => {
       )}
     </div>
   );
+};
+
+const VersionDetailsList = ({ details, fallback }) => {
+  if (Array.isArray(details) && details.length > 0) {
+    return (
+      <dl className="mt-1 space-y-1 text-sm">
+        {details.map((detail, index) => {
+          const key = detail.label ? `${detail.label}-${index}` : `version-${index}`;
+          const value = detail.value && detail.value.length > 0 ? detail.value : "-";
+
+          return (
+            <div key={key} className="flex flex-col gap-0.5">
+              <dt className="font-medium text-gray-500">{detail.label}</dt>
+              <dd className="text-gray-900">{value}</dd>
+            </div>
+          );
+        })}
+      </dl>
+    );
+  }
+
+  const fallbackText = fallback && fallback.length > 0 ? fallback : "N/A";
+
+  return <p className="text-gray-900">{fallbackText}</p>;
 };
 
 const MaintenanceHistoryPage = () => {
@@ -364,7 +393,10 @@ const MaintenanceHistoryPage = () => {
                     <div className="mt-3 grid gap-3 text-sm text-gray-600 sm:grid-cols-2">
                       <div>
                         <span className="font-semibold text-gray-500">เวอร์ชัน</span>
-                        <p className="text-gray-900">{record.versionLabel}</p>
+                        <VersionDetailsList
+                          details={record.versionDetails}
+                          fallback={record.versionLabel}
+                        />
                       </div>
                       <div>
                         <span className="font-semibold text-gray-500">สถานะล่าสุด</span>

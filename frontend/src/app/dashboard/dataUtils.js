@@ -72,6 +72,18 @@ const normaliseNotes = (value) => {
   return String(value);
 };
 
+const normaliseText = (value) => {
+  if (value === undefined || value === null) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  return String(value).trim();
+};
+
 const deriveId = (site, index) => {
   const candidates = [site?._id, site?.id, site?.uuid];
 
@@ -120,6 +132,70 @@ const normaliseChangeDetails = (rawDetails) => {
     .filter((detail) => detail.label);
 };
 
+const buildWordpressVersionDetails = (site) => {
+  const detailMap = new Map();
+
+  const addDetail = (label, value) => {
+    const trimmedLabel = normaliseText(label);
+
+    if (!trimmedLabel) {
+      return;
+    }
+
+    const trimmedValue = normaliseText(value);
+    const existing = detailMap.get(trimmedLabel);
+
+    if (
+      !existing ||
+      (existing.value.length === 0 && trimmedValue.length > 0)
+    ) {
+      detailMap.set(trimmedLabel, {
+        label: trimmedLabel,
+        value: trimmedValue,
+      });
+    }
+  };
+
+  const coreVersion =
+    site?.wordpressVersion ?? site?.wordpress_version ?? site?.version ?? "";
+
+  if (coreVersion) {
+    addDetail("WordPress core", coreVersion);
+  }
+
+  const theme =
+    site?.theme && typeof site.theme === "object" ? site.theme : undefined;
+
+  if (theme) {
+    const themeName = normaliseText(theme.name);
+    const themeVersion = normaliseText(theme.version);
+    if (themeName || themeVersion) {
+      addDetail(
+        "Theme",
+        [themeName, themeVersion].filter((part) => part.length > 0).join(" "),
+      );
+    }
+  }
+
+  const pluginSources = [];
+
+  if (Array.isArray(site?.plugins)) {
+    pluginSources.push(...site.plugins);
+  }
+
+  if (Array.isArray(site?.versions)) {
+    pluginSources.push(...site.versions);
+  }
+
+  pluginSources.forEach((plugin, index) => {
+    const name = normaliseText(plugin?.name) || `Plugin ${index + 1}`;
+    const version = normaliseText(plugin?.version);
+    addDetail(`Plugin: ${name}`, version);
+  });
+
+  return Array.from(detailMap.values());
+};
+
 export const normaliseWordpressSites = (sites = []) =>
   sites.map((site, index) => {
     const lastChecked = site?.lastChecked ?? site?.last_checked ?? null;
@@ -129,6 +205,14 @@ export const normaliseWordpressSites = (sites = []) =>
     const changeDetectedAtSource =
       site?.lastChangeDetectedAt ?? site?.changeDetectedAt ?? null;
     const changeDetectedAtDate = getValidDate(changeDetectedAtSource);
+    const versionDetails = buildWordpressVersionDetails(site);
+    const versionLabelText = versionDetails
+      .map((detail) =>
+        [detail.label, detail.value]
+          .filter((part) => part && part.length > 0)
+          .join(" "),
+      )
+      .join(" • ");
 
     return {
       id: deriveId(site, index),
@@ -145,11 +229,8 @@ export const normaliseWordpressSites = (sites = []) =>
         site?.lastChangeSummary ?? site?.changeSummary ?? "",
       changeDetails: normaliseChangeDetails(changeDetailsSource),
       changeDetectedAt: changeDetectedAtDate,
-      version:
-        site?.wordpressVersion ??
-        site?.wordpress_version ??
-        site?.version ??
-        "",
+      version: versionLabelText,
+      versionDetails,
     };
   });
 
@@ -184,7 +265,10 @@ const normaliseSupportpalVersion = (site) => {
     }
 
     seenKeys.add(key);
-    entries.push(`${label} ${trimmed}`);
+    entries.push({
+      label,
+      value: trimmed,
+    });
   };
 
   if (site?.versions && typeof site.versions === "object") {
@@ -208,10 +292,18 @@ const normaliseSupportpalVersion = (site) => {
   }
 
   if (entries.length === 0) {
-    return "";
+    return { label: "", details: [] };
   }
 
-  return entries.join(" • ");
+  const label = entries
+    .map((entry) =>
+      [entry.label, entry.value]
+        .filter((part) => part && part.length > 0)
+        .join(" "),
+    )
+    .join(" • ");
+
+  return { label, details: entries };
 };
 
 export const normaliseSupportpalSites = (sites = []) =>
@@ -223,6 +315,7 @@ export const normaliseSupportpalSites = (sites = []) =>
     const changeDetectedAtSource =
       site?.lastChangeDetectedAt ?? site?.changeDetectedAt ?? null;
     const changeDetectedAtDate = getValidDate(changeDetectedAtSource);
+    const versionInfo = normaliseSupportpalVersion(site);
 
     return {
       id: deriveId(site, index),
@@ -239,20 +332,39 @@ export const normaliseSupportpalSites = (sites = []) =>
         site?.lastChangeSummary ?? site?.changeSummary ?? "",
       changeDetails: normaliseChangeDetails(changeDetailsSource),
       changeDetectedAt: changeDetectedAtDate,
-      version: normaliseSupportpalVersion(site),
+      version: versionInfo.label,
+      versionDetails: versionInfo.details,
     };
   });
 
 export const buildMaintenanceRecords = (wordpressSites, supportpalSites) => {
   const enhanceRecord = (record) => {
     const lastActivity = record.changeDetectedAt || record.lastCheckedDate;
+    const versionDetails = Array.isArray(record.versionDetails)
+      ? record.versionDetails
+      : [];
 
     const versionText =
-      typeof record.version === "string" ? record.version.trim() : "";
+      typeof record.version === "string" && record.version.trim().length > 0
+        ? record.version.trim()
+        : versionDetails
+            .map((detail) =>
+              [detail.label, detail.value]
+                .filter((part) => part && part.length > 0)
+                .join(" "),
+            )
+            .join(" • ");
 
     let versionLabel = "N/A";
 
-    if (versionText.length > 0) {
+    if (versionDetails.length > 0) {
+      const primaryDetail = versionDetails[0];
+      const primaryLabel = [primaryDetail.label, primaryDetail.value]
+        .filter((part) => part && part.length > 0)
+        .join(" ");
+
+      versionLabel = primaryLabel || versionText || "N/A";
+    } else if (versionText.length > 0) {
       if (record.type === "WordPress" && !/^wordpress/i.test(versionText)) {
         versionLabel = `WordPress ${versionText}`;
       } else {
@@ -264,7 +376,9 @@ export const buildMaintenanceRecords = (wordpressSites, supportpalSites) => {
       ...record,
       lastActivity,
       lastActivityLabel: formatDateTime(lastActivity),
+      version: versionText,
       versionLabel,
+      versionDetails,
     };
   };
 
