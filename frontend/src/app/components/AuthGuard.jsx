@@ -208,14 +208,6 @@ export default function AuthGuard({ children, excludedPaths }) {
     commitAuthState,
   ]);
 
-  if (authState.checking) {
-    return <div>Loading...</div>;
-  }
-
-  if (!authState.authorized) {
-    return null;
-  }
-
   const contextValue = useMemo(
     () => ({
       accessToken: session.accessToken,
@@ -226,6 +218,14 @@ export default function AuthGuard({ children, excludedPaths }) {
     }),
     [session, clearStoredSession, setUser],
   );
+
+  if (authState.checking) {
+    return <div>Loading...</div>;
+  }
+
+  if (!authState.authorized) {
+    return null;
+  }
 
   return (
     <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
