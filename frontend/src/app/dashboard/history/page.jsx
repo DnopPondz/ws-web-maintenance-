@@ -10,7 +10,7 @@ import {
   formatDateTime,
   normaliseSupportpalSites,
   normaliseWordpressSites,
-} from "../dataUtils";
+} from "@/app/dashboard/dataUtils";
 import { buildRecordPath } from "./utils";
 
 const typeOptions = [
