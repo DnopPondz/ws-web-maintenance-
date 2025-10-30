@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 
 import PageContainer from "../../../../components/PageContainer";
 import { fetchSupportpalSites, fetchWordpressSites } from "../../../../lib/api";
@@ -81,13 +81,15 @@ const VersionDetailsList = ({ details, fallback }) => {
 };
 
 const MaintenanceRecordDetailPage = ({ params }) => {
+  const resolvedParams =
+    params && typeof params.then === "function" ? use(params) : params;
   const [data, setData] = useState({ wordpress: [], supportpal: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
 
-  const typeParam = toTypeSlug(decodeParamSegment(params?.type));
-  const idParam = decodeParamSegment(params?.id);
+  const typeParam = toTypeSlug(decodeParamSegment(resolvedParams?.type));
+  const idParam = decodeParamSegment(resolvedParams?.id);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
