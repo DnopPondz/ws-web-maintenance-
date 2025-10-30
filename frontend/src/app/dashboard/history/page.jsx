@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import PageContainer from "../../components/PageContainer";
@@ -10,6 +11,7 @@ import {
   normaliseSupportpalSites,
   normaliseWordpressSites,
 } from "../dataUtils";
+import { buildRecordPath } from "./utils";
 
 const typeOptions = [
   { value: "all", label: "All platforms" },
@@ -74,78 +76,77 @@ const filterRecords = (records, searchTerm, type) => {
   });
 };
 
-const ChangeDetailsList = ({ details }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  if (!Array.isArray(details) || details.length === 0) {
-    return null;
-  }
-
-  const toggle = () => setIsExpanded((previous) => !previous);
+const RecordSummaryCard = ({ record }) => {
+  const href = buildRecordPath(record);
+  const versionLabel = record.versionLabel || record.version || "N/A";
+  const hasNotes = record.maintenanceNotes && record.maintenanceNotes.length > 0;
 
   return (
-    <div className="mt-3 space-y-2">
-      <button
-        type="button"
-        onClick={toggle}
-        className="inline-flex items-center gap-1 text-sm font-semibold text-[#316fb7] transition-colors hover:text-[#245c94]"
-        aria-expanded={isExpanded}
-      >
-        {isExpanded ? "Hide change details" : `Show change details (${details.length})`}
-        <span aria-hidden>{isExpanded ? "▲" : "▼"}</span>
-      </button>
+    <Link
+      href={href}
+      className="group block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#316fb7]"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                record.type === "WordPress"
+                  ? "bg-blue-100 text-blue-700"
+                  : "bg-emerald-100 text-emerald-700"
+              }`}
+            >
+              {record.type}
+            </span>
+            <h3 className="text-lg font-semibold text-slate-900">{record.name}</h3>
+          </div>
+          {record.url && (
+            <p className="mt-1 max-w-full break-words text-sm text-[#316fb7] group-hover:underline">
+              {record.url}
+            </p>
+          )}
+          {hasNotes && (
+            <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+              <span aria-hidden className="text-base leading-none">
+                •
+              </span>
+              มีหมายเหตุ
+            </span>
+          )}
+        </div>
+        <div className="text-right text-sm text-slate-600">
+          <p className="font-medium uppercase tracking-wide text-slate-500">
+            อัปเดตล่าสุด
+          </p>
+          <p className="mt-1 text-base font-semibold text-slate-900">
+            {record.lastActivityLabel || "ยังไม่มีประวัติ"}
+          </p>
+        </div>
+      </div>
 
-      {isExpanded && (
-        <dl className="space-y-2 text-sm text-gray-600">
-          {details.map((detail, index) => {
-            const key = detail.field || `${detail.label}-${index}`;
-            const previous = detail.previous && detail.previous.length > 0 ? detail.previous : null;
-            const current = detail.current && detail.current.length > 0 ? detail.current : null;
-            let value = "Updated";
-
-            if (previous && current) {
-              value = previous === current ? current : `${previous} → ${current}`;
-            } else if (current) {
-              value = current;
-            } else if (previous) {
-              value = previous;
-            }
-
-            return (
-              <div key={key} className="flex flex-col gap-0.5">
-                <dt className="font-medium text-gray-500">{detail.label}</dt>
-                <dd className="text-gray-700">{value}</dd>
-              </div>
-            );
-          })}
-        </dl>
-      )}
-    </div>
-  );
-};
-
-const VersionDetailsList = ({ details, fallback }) => {
-  if (Array.isArray(details) && details.length > 0) {
-    return (
-      <dl className="mt-1 space-y-1 text-sm">
-        {details.map((detail, index) => {
-          const key = detail.label ? `${detail.label}-${index}` : `version-${index}`;
-          const value = detail.value && detail.value.length > 0 ? detail.value : "-";
-
-          return (
-            <div key={key} className="flex flex-col gap-0.5">
-              <dt className="font-medium text-gray-500">{detail.label}</dt>
-              <dd className="text-gray-900">{value}</dd>
-            </div>
-          );
-        })}
+      <dl className="mt-4 grid gap-4 text-sm text-slate-600 sm:grid-cols-2">
+        <div>
+          <dt className="font-medium text-slate-500">เวอร์ชันล่าสุด</dt>
+          <dd className="mt-1 text-slate-900">{versionLabel}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-500">สถานะระบบ</dt>
+          <dd className="mt-1 text-slate-900">{record.status || "ไม่ทราบ"}</dd>
+        </div>
       </dl>
-    );
-  }
 
-  const fallbackText = fallback && fallback.length > 0 ? fallback : "N/A";
+      {record.changeSummary && (
+        <p className="mt-4 text-sm text-slate-600">{record.changeSummary}</p>
+      )}
 
-  return <p className="text-gray-900">{fallbackText}</p>;
+      <div className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-[#316fb7]">
+        ดูรายละเอียด
+        <span aria-hidden className="transition group-hover:translate-x-0.5">
+          →
+        </span>
+      </div>
+    </Link>
+  );
 };
 
 const MaintenanceHistoryPage = () => {
@@ -360,76 +361,10 @@ const MaintenanceHistoryPage = () => {
             <p className="text-sm text-gray-500">ไม่พบข้อมูลที่ตรงกับเงื่อนไขที่เลือก</p>
           </div>
         ) : (
-          <ul className="space-y-4">
+          <ul className="grid gap-4 lg:grid-cols-2">
             {filteredRecords.map((record) => (
-              <li
-                key={`${record.type}-${record.id}`}
-                className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:shadow-md"
-              >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          record.type === "WordPress"
-                            ? "bg-blue-100 text-blue-700"
-                            : "bg-emerald-100 text-emerald-700"
-                        }`}
-                      >
-                        {record.type}
-                      </span>
-                      <h3 className="text-lg font-semibold text-gray-900">{record.name}</h3>
-                    </div>
-                    {record.url && (
-                      <a
-                        href={record.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 inline-flex text-sm text-[#316fb7] hover:underline"
-                      >
-                        {record.url}
-                      </a>
-                    )}
-                    <div className="mt-3 grid gap-3 text-sm text-gray-600 sm:grid-cols-2">
-                      <div>
-                        <span className="font-semibold text-gray-500">เวอร์ชัน</span>
-                        <VersionDetailsList
-                          details={record.versionDetails}
-                          fallback={record.versionLabel}
-                        />
-                      </div>
-                      <div>
-                        <span className="font-semibold text-gray-500">สถานะล่าสุด</span>
-                        <p className="text-gray-900">{record.status || "ไม่ทราบ"}</p>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-gray-500">ตรวจครั้งสุดท้าย</span>
-                        <p className="text-gray-900">{formatDateTime(record.lastCheckedDate)}</p>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-gray-500">อัปเดตล่าสุด</span>
-                        <p className="text-gray-900">{record.lastActivityLabel}</p>
-                      </div>
-                    </div>
-                    {record.changeSummary && (
-                      <p className="mt-3 text-sm text-gray-600">{record.changeSummary}</p>
-                    )}
-                    {record.maintenanceNotes && (
-                      <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                        หมายเหตุ: {record.maintenanceNotes}
-                      </p>
-                    )}
-                    <ChangeDetailsList details={record.changeDetails} />
-                  </div>
-                  <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    <p className="font-semibold text-slate-500">สรุปยืนยัน</p>
-                    <p className="mt-1">
-                      {record.isConfirmed
-                        ? "ยืนยันการบำรุงรักษาแล้วในรอบปัจจุบัน"
-                        : "ยังไม่ได้ยืนยันการบำรุงรักษาในรอบนี้"}
-                    </p>
-                  </div>
-                </div>
+              <li key={`${record.type}-${record.id}`}>
+                <RecordSummaryCard record={record} />
               </li>
             ))}
           </ul>
