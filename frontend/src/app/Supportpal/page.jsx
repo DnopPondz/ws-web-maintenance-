@@ -880,7 +880,7 @@ const SpDashboard = () => {
   const currentPageSites = getCurrentPageSites();
   const pageTitle =
     currentPage === "confirmed" ? "Confirmed servers" : "SupportPal Maintenance Dashboard";
-  const pageIcon = currentPage === "confirmed" ? "✅" : "🎫";
+  const pageIcon = currentPage === "confirmed" ? "" : "";
   const totalSites = sites.length;
   const confirmedCount = sites.filter((site) => site.isConfirmed).length;
   const pendingCount = Math.max(totalSites - confirmedCount, 0);
@@ -1240,7 +1240,8 @@ const SpDashboard = () => {
           </div>
         </div>
       )}
-    </div>
+   
+    </PageContainer>
   );
 };
 
