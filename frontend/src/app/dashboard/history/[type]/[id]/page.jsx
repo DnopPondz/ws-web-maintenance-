@@ -10,7 +10,7 @@ import {
   formatDateTime,
   normaliseSupportpalSites,
   normaliseWordpressSites,
-} from "../../dataUtils";
+} from "../../../dataUtils";
 import {
   decodeParamSegment,
   recordMatchesParams,
