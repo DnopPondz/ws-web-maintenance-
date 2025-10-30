@@ -2,10 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import PageContainer from "./components/PageContainer";
+import { useAuth } from "./lib/auth-context";
 
 const SERVICES = [
   {
@@ -33,38 +32,17 @@ const SERVICES = [
 ];
 
 const Home = () => {
-  const router = useRouter();
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
 
-  useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-    const storedUser = localStorage.getItem("user");
+  const greetingName = [user?.firstname, user?.username, user?.email]
+    .find((value) => typeof value === "string" && value.trim().length > 0);
 
-    if (!token || !storedUser) {
-      router.push("/login");
-      return;
-    }
-
-    try {
-      setUser(JSON.parse(storedUser));
-    } catch (error) {
-      console.error("Unable to parse stored user", error);
-      router.push("/login");
-    }
-  }, [router]);
-
-  if (!user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#f2f7ff] via-white to-[#e3edff] text-slate-600">
-        Loading your workspace…
-      </div>
-    );
-  }
+  const safeGreeting = greetingName ? greetingName.trim() : "";
 
   return (
     <PageContainer
       meta="Maintenance workspace"
-      title={`Welcome back, ${user.firstname}!`}
+      title={`Welcome back${safeGreeting ? `, ${safeGreeting}` : ""}!`}`
       description="Choose the platform you would like to maintain. Everything shares the same visual language so you can move between systems with confidence."
       actions={(
         <div className="rounded-2xl bg-white/70 px-6 py-4 text-sm text-slate-600 shadow-sm backdrop-blur">
