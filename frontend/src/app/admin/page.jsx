@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Edit, Trash2, Eye, EyeOff, X } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, EyeOff, X, ChevronDown } from "lucide-react";
 import PageContainer from "../components/PageContainer";
 import { apiClient } from "../lib/api";
 
@@ -447,30 +447,42 @@ const UserManagePage = () => {
                     </div>
                     <div className="space-y-2">
                       <label className="block text-sm font-medium text-slate-600">Role</label>
-                      <select
-                        name="role"
-                        value={formData.role}
-                        onChange={handleInputChange}
-                        className="w-full appearance-none rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-[#316fb7] focus:outline-none focus:ring-2 focus:ring-[#316fb7]/40"
-                      >
-                        <option value="user">User</option>
-                        <option value="admin">Admin</option>
-                      </select>
+                      <div className="relative">
+                        <select
+                          name="role"
+                          value={formData.role}
+                          onChange={handleInputChange}
+                          className="peer w-full appearance-none rounded-lg border border-slate-200 bg-gradient-to-b from-white to-slate-50 px-3 py-2.5 pr-10 text-sm font-medium text-slate-700 shadow-sm transition focus:border-[#316fb7] focus:outline-none focus:ring-2 focus:ring-[#316fb7]/40 hover:border-slate-300"
+                        >
+                          <option value="user">User</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                        <ChevronDown
+                          size={16}
+                          className="pointer-events-none absolute inset-y-0 right-3 my-auto text-slate-400 transition peer-focus:text-[#316fb7]"
+                        />
+                      </div>
                     </div>
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <label className="block text-sm font-medium text-slate-600">Status</label>
-                      <select
-                        name="status"
-                        value={formData.status}
-                        onChange={handleInputChange}
-                        className="w-full appearance-none rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-[#316fb7] focus:outline-none focus:ring-2 focus:ring-[#316fb7]/40"
-                      >
-                        <option value="active">Active</option>
-                        <option value="suspended">Suspended</option>
-                      </select>
+                      <div className="relative">
+                        <select
+                          name="status"
+                          value={formData.status}
+                          onChange={handleInputChange}
+                          className="peer w-full appearance-none rounded-lg border border-slate-200 bg-gradient-to-b from-white to-slate-50 px-3 py-2.5 pr-10 text-sm font-medium text-slate-700 shadow-sm transition focus:border-[#316fb7] focus:outline-none focus:ring-2 focus:ring-[#316fb7]/40 hover:border-slate-300"
+                        >
+                          <option value="active">Active</option>
+                          <option value="suspended">Suspended</option>
+                        </select>
+                        <ChevronDown
+                          size={16}
+                          className="pointer-events-none absolute inset-y-0 right-3 my-auto text-slate-400 transition peer-focus:text-[#316fb7]"
+                        />
+                      </div>
                     </div>
                     <div className="hidden sm:block" />
                   </div>
