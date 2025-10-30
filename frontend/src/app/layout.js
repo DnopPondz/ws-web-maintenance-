@@ -5,6 +5,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import NavSidebar from "./components/navsitebar";
 import AuthGuard from './components/AuthGuard';
+import PageTransition from "./components/PageTransition";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -105,7 +106,9 @@ export default function RootLayout({ children }) {
                   : ''
               }`}
             >
-              <div className="min-h-screen w-full">{children}</div>
+              <PageTransition>
+                <div className="min-h-screen w-full">{children}</div>
+              </PageTransition>
             </main>
           </AuthGuard >
         ) : (
@@ -120,7 +123,9 @@ export default function RootLayout({ children }) {
                 : ''
             }`}
           >
-            <div className="min-h-screen w-full">{children}</div>
+            <PageTransition>
+              <div className="min-h-screen w-full">{children}</div>
+            </PageTransition>
           </main>
         )}
 

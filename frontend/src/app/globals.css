@@ -14,3 +14,20 @@ a {
   text-decoration: none;
 }
 
+.page-transition {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  opacity: 1;
+  transition: opacity var(--page-transition-duration, 250ms) ease;
+  will-change: opacity;
+}
+
+.page-transition.fade-out {
+  opacity: 0;
+}
+
+.page-transition.fade-in {
+  opacity: 1;
+}
+
