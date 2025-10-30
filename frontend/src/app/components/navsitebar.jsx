@@ -84,14 +84,14 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
       {/* Overlay for mobile */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-white bg-opacity-50 z-[-1] "
+          className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm"
           onClick={() => setIsOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-screen bg-[#316fb7] text-white flex flex-col transition-all duration-300 z-40 ${
+        className={`fixed top-0 left-0 h-screen bg-gradient-to-br from-[#316fb7] via-[#2a5fa0] to-[#1f4d85] text-white flex flex-col shadow-xl transition-all duration-300 z-40 ${
           isOpen ? "w-64" : "w-16"
         }`}
       >
@@ -230,7 +230,7 @@ export default function NavSidebar({ isOpen, setIsOpen }) {
 // Extracted NavLink component for better maintainability
 function NavLink({ href, icon, label, isOpen, className = "" }) {
   const baseClasses =
-    "flex items-center p-3 rounded-lg transition-all duration-200 hover:bg-[#7a98bb]";
+    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 hover:bg-white/15";
   const classes = className ? `${baseClasses} ${className}` : baseClasses;
 
   return (

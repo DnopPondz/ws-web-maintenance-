@@ -35,10 +35,12 @@ export default function RootLayout({ children }) {
       </head>
       <body
         className={`
-          ${geistSans.variable} 
-          ${geistMono.variable} 
-          antialiased 
-          ${shouldShowSidebar ? 'flex' : ''} 
+          ${geistSans.variable}
+          ${geistMono.variable}
+          antialiased
+          bg-slate-100
+          text-slate-900
+          ${shouldShowSidebar ? 'flex' : ''}
           ${!shouldShowSidebar ? 'overflow-hidden' : ''}
         `}
       >
@@ -49,24 +51,24 @@ export default function RootLayout({ children }) {
         {shouldProtect ? (
           <AuthGuard>
             <main
-              className={`transition-all duration-300 p-0 bg-white min-h-screen w-full ${
-                shouldShowSidebar 
+              className={`transition-all duration-300 w-full flex-1 ${
+                shouldShowSidebar
                   ? (sidebarOpen ? 'ml-64' : 'ml-16')
                   : ''
               }`}
             >
-              {children}
+              <div className="min-h-screen w-full">{children}</div>
             </main>
           </AuthGuard >
         ) : (
           <main
-            className={`transition-all duration-300 p-0 bg-white min-h-screen w-full ${
-              shouldShowSidebar 
+            className={`transition-all duration-300 w-full flex-1 ${
+              shouldShowSidebar
                 ? (sidebarOpen ? 'ml-64' : 'ml-16')
                 : ''
             }`}
           >
-            {children}
+            <div className="min-h-screen w-full">{children}</div>
           </main>
         )}
 
