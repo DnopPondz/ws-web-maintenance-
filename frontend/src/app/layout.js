@@ -18,20 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export default function RootLayout({ children }) {
-  const [isDesktop, setIsDesktop] = useState(() => {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-
-    return window.innerWidth >= 1024;
-  });
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-
-    return window.innerWidth >= 1024;
-  });
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
 
   // หน้าที่ไม่ต้องการ Sidebar และไม่ต้องการ AuthGuard
@@ -45,8 +33,7 @@ export default function RootLayout({ children }) {
         return;
       }
 
-      const desktop = window.innerWidth >= 1024;
-      setIsDesktop(desktop);
+      setIsDesktop(window.innerWidth >= 1024);
     };
 
     handleResize();
