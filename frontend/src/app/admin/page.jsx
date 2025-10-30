@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Edit, Trash2, Eye, EyeOff } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, EyeOff, X } from "lucide-react";
 import PageContainer from "../components/PageContainer";
 import { apiClient } from "../lib/api";
 
@@ -324,158 +324,175 @@ const UserManagePage = () => {
 
       {/* Modal */}
       {showModal && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/30 backdrop-blur-sm z-50">
-          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
-            <h2 className="text-lg font-semibold mb-6 text-gray-800">
-              {modalType === "add" && "Add New User"}
-              {modalType === "edit" && "Edit User"}
-              {modalType === "delete" && "Delete User"}
-            </h2>
-
-            {modalType === "delete" ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm sm:p-6">
+          <div className="relative w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
               <div>
-                <p className="text-gray-600 mb-6">
-                  Are you sure you want to delete user "{selectedUser?.username}
-                  "?
+                <h2 className="text-lg font-semibold text-slate-900">
+                  {modalType === "add" && "Add new user"}
+                  {modalType === "edit" && "Edit user"}
+                  {modalType === "delete" && "Delete user"}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {modalType === "add" && "Create a new account and assign the appropriate role and status."}
+                  {modalType === "edit" && "Update account details, set a new password, or adjust access."}
+                  {modalType === "delete" && "Removing a user immediately revokes their access to the system."}
                 </p>
-                <div className="flex gap-3 justify-end">
-                  <button
-                    onClick={closeModal}
-                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleDelete}
-                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transform hover:scale-105 cursor-pointer"
-                  >
-                    Delete
-                  </button>
-                </div>
               </div>
-            ) : (
-              <form onSubmit={handleSubmit}>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Firstname
-                  </label>
-                  <input
-                    type="text"
-                    name="firstname"
-                    value={formData.firstname}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Lastname
-                  </label>
-                  <input
-                    type="text"
-                    name="lastname"
-                    value={formData.lastname}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Username
-                  </label>
-                  <input
-                    type="text"
-                    name="username"
-                    value={formData.username}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {modalType === "edit"
-                      ? "New Password (leave blank to keep current)"
-                      : "Password"}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      name="password"
-                      value={formData.password}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg pr-10 focus:ring-2 focus:ring-blue-500"
-                      required={modalType === "add"}
-                    />
+              <button
+                type="button"
+                onClick={closeModal}
+                className="-m-2 rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#316fb7]"
+                aria-label="Close dialog"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="max-h-[calc(100vh-8rem)] overflow-y-auto px-6 pb-6 pt-4">
+              {modalType === "delete" ? (
+                <div className="space-y-6">
+                  <p className="text-sm leading-relaxed text-slate-600">
+                    Are you sure you want to delete user "{selectedUser?.username}"? This action cannot be undone.
+                  </p>
+                  <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                     <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 cursor-pointer"
+                      onClick={closeModal}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#316fb7]"
                     >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      className="inline-flex items-center justify-center rounded-lg bg-red-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+                    >
+                      Delete user
                     </button>
                   </div>
                 </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Role
-                  </label>
-                  <select
-                    name="role"
-                    value={formData.role}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="user">User</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Status
-                  </label>
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="active">Active</option>
-                    <option value="suspended">Suspended</option>
-                  </select>
-                </div>
-                <div className="flex gap-3 justify-end">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transform hover:scale-105 cursor-pointer"
-                  >
-                    {modalType === "add" ? "Add User" : "Save Changes"}
-                  </button>
-                </div>
-              </form>
-            )}
+              ) : (
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-slate-600">Firstname</label>
+                      <input
+                        type="text"
+                        name="firstname"
+                        value={formData.firstname}
+                        onChange={handleInputChange}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-[#316fb7] focus:outline-none focus:ring-2 focus:ring-[#316fb7]/40"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-slate-600">Lastname</label>
+                      <input
+                        type="text"
+                        name="lastname"
+                        value={formData.lastname}
+                        onChange={handleInputChange}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-[#316fb7] focus:outline-none focus:ring-2 focus:ring-[#316fb7]/40"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-slate-600">Username</label>
+                      <input
+                        type="text"
+                        name="username"
+                        value={formData.username}
+                        onChange={handleInputChange}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-[#316fb7] focus:outline-none focus:ring-2 focus:ring-[#316fb7]/40"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-slate-600">Email</label>
+                      <input
+                        type="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleInputChange}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-[#316fb7] focus:outline-none focus:ring-2 focus:ring-[#316fb7]/40"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-slate-600">
+                        {modalType === "edit"
+                          ? "New password (leave blank to keep current)"
+                          : "Password"}
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          name="password"
+                          value={formData.password}
+                          onChange={handleInputChange}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2.5 pr-10 text-sm text-slate-700 shadow-sm transition focus:border-[#316fb7] focus:outline-none focus:ring-2 focus:ring-[#316fb7]/40"
+                          required={modalType === "add"}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 transition hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#316fb7]"
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                        >
+                          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-slate-600">Role</label>
+                      <select
+                        name="role"
+                        value={formData.role}
+                        onChange={handleInputChange}
+                        className="w-full appearance-none rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-[#316fb7] focus:outline-none focus:ring-2 focus:ring-[#316fb7]/40"
+                      >
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-slate-600">Status</label>
+                      <select
+                        name="status"
+                        value={formData.status}
+                        onChange={handleInputChange}
+                        className="w-full appearance-none rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-[#316fb7] focus:outline-none focus:ring-2 focus:ring-[#316fb7]/40"
+                      >
+                        <option value="active">Active</option>
+                        <option value="suspended">Suspended</option>
+                      </select>
+                    </div>
+                    <div className="hidden sm:block" />
+                  </div>
+
+                  <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={closeModal}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#316fb7]"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="inline-flex items-center justify-center rounded-lg bg-[#316fb7] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#244f8a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#316fb7]/50"
+                    >
+                      {modalType === "add" ? "Create user" : "Save changes"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}
