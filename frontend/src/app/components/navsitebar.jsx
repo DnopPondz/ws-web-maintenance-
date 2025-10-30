@@ -191,7 +191,7 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
           <div className="px-5 pt-8 pb-6">
             <div className="flex items-center justify-between">
               <div className={`text-sm font-semibold tracking-wide ${isDesktop && !isOpen ? "sr-only" : "uppercase text-white/70"}`}>
-                Control Panel
+                Web Maintenance
               </div>
               {isDesktop && (
                 <button
@@ -208,9 +208,9 @@ export default function NavSidebar({ isDesktop, isOpen, setIsOpen }) {
               )}
             </div>
 
-            <div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-4">
+            <div className="mt-2 rounded-xl  ">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20 text-lg font-semibold uppercase">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-lg font-semibold uppercase">
                   {displayInitial}
                 </div>
                 {(isOpen || !isDesktop) && (
