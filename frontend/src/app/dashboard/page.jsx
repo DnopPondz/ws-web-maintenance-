@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchSupportpalSites, fetchWordpressSites } from "../lib/api";
@@ -16,41 +17,18 @@ const WORDPRESS_SCHEDULE_DESCRIPTION =
 const SUPPORTPAL_SCHEDULE_DESCRIPTION =
   "Monthly maintenance — resets on the 1st day of each month at 00:00 (Asia/Bangkok).";
 
-const STATUS_STYLES = {
-  healthy: "bg-emerald-100 text-emerald-700",
-  success: "bg-emerald-100 text-emerald-700",
-  operational: "bg-emerald-100 text-emerald-700",
-  warning: "bg-amber-100 text-amber-700",
-  degraded: "bg-amber-100 text-amber-700",
-  maintenance: "bg-sky-100 text-sky-700",
-  pending: "bg-amber-100 text-amber-700",
-  critical: "bg-red-100 text-red-700",
-  incident: "bg-red-100 text-red-700",
-  offline: "bg-red-100 text-red-700",
-  down: "bg-red-100 text-red-700",
-};
+const ATTENTION_STATUS_KEYS = new Set([
+  "warning",
+  "degraded",
+  "maintenance",
+  "pending",
+  "critical",
+  "incident",
+  "offline",
+  "down",
+]);
 
-const getStatusBadgeClass = (status) => {
-  if (!status || typeof status !== "string") {
-    return "bg-gray-200 text-gray-700";
-  }
-
-  const key = status.trim().toLowerCase();
-
-  return STATUS_STYLES[key] || "bg-gray-200 text-gray-700";
-};
-
-const formatStatusLabel = (status) => {
-  if (!status || typeof status !== "string") {
-    return "Unknown";
-  }
-
-  return status
-    .split(/[\s_-]+/)
-    .filter(Boolean)
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(" ");
-};
+const HEALTHY_STATUS_KEYS = new Set(["healthy", "success", "operational"]);
 
 const extractErrorMessage = (reason, fallback) => {
   if (!reason) {
@@ -113,66 +91,47 @@ const EmptyState = ({ message }) => (
   </div>
 );
 
-const ChangeDetails = ({ details, summary }) => {
-  const hasDetails = Array.isArray(details) && details.length > 0;
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  if (!hasDetails) {
-    if (summary) {
-      return <p className="mt-3 text-sm text-gray-500">{summary}</p>;
-    }
-
-    return null;
-  }
-
-  const toggleExpanded = () => {
-    setIsExpanded((previous) => !previous);
-  };
+const ProgressSummaryCard = ({ label, stats }) => {
+  const percentComplete = stats.total
+    ? Math.round((stats.confirmed / stats.total) * 100)
+    : 0;
 
   return (
-    <div className="mt-3 space-y-2">
-      {summary && <p className="text-sm text-gray-500">{summary}</p>}
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            {label}
+          </h3>
+          <p className="mt-1 text-3xl font-bold text-gray-900">
+            {stats.confirmed} / {stats.total}
+          </p>
+          <p className="text-sm text-gray-500">Confirmed this cycle</p>
+        </div>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+          {percentComplete}% complete
+        </span>
+      </div>
 
-      <button
-        type="button"
-        onClick={toggleExpanded}
-        aria-expanded={isExpanded}
-        className="inline-flex items-center gap-1 text-sm font-semibold text-[#316fb7] transition-colors hover:text-[#245c94]"
-      >
-        {isExpanded
-          ? "Hide change details"
-          : `Show change details (${details.length})`}
-        <span aria-hidden="true">{isExpanded ? "▲" : "▼"}</span>
-      </button>
+      <div className="mt-4 h-2 rounded-full bg-slate-200">
+        <div
+          className="h-2 rounded-full bg-[#316fb7] transition-all"
+          style={{ width: `${Math.min(percentComplete, 100)}%` }}
+        />
+      </div>
 
-      {isExpanded && (
-        <dl className="space-y-2 text-sm text-gray-600">
-          {details.map((detail, index) => {
-            const key = detail.field || `${detail.label}-${index}`;
-            const hasPrevious = detail.previous && detail.previous.length > 0;
-            const hasCurrent = detail.current && detail.current.length > 0;
-            let valueLabel = "Updated";
-
-            if (hasPrevious && hasCurrent) {
-              valueLabel =
-                detail.previous === detail.current
-                  ? detail.current
-                  : `${detail.previous} → ${detail.current}`;
-            } else if (hasCurrent) {
-              valueLabel = detail.current;
-            } else if (hasPrevious) {
-              valueLabel = detail.previous;
-            }
-
-            return (
-              <div key={key} className="flex flex-col gap-0.5">
-                <dt className="font-medium text-gray-500">{detail.label}</dt>
-                <dd className="text-gray-700">{valueLabel}</dd>
-              </div>
-            );
-          })}
-        </dl>
-      )}
+      <dl className="mt-4 grid gap-2 text-sm text-gray-600 sm:grid-cols-2">
+        <div>
+          <dt className="text-gray-400">Pending review</dt>
+          <dd className="font-semibold text-gray-900">{stats.pending}</dd>
+        </div>
+        <div>
+          <dt className="text-gray-400">Last confirmation</dt>
+          <dd className="font-medium text-gray-900">
+            {stats.lastConfirmed ? formatDateTime(stats.lastConfirmed) : "No confirmations"}
+          </dd>
+        </div>
+      </dl>
     </div>
   );
 };
@@ -311,32 +270,48 @@ const DashboardPage = () => {
     return { total, confirmed, pending, lastConfirmed };
   }, [data.supportpal, supportpalConfirmed]);
 
-  const combinedConfirmed = useMemo(() => {
-    const items = [...wordpressConfirmed, ...supportpalConfirmed];
+  const hasAnyData =
+    data.wordpress.length > 0 || data.supportpal.length > 0;
 
-    return items.sort((a, b) => {
-      const aTime = a.lastCheckedDate ? a.lastCheckedDate.getTime() : 0;
-      const bTime = b.lastCheckedDate ? b.lastCheckedDate.getTime() : 0;
+  const statusOverview = useMemo(() => {
+    const combined = [...data.wordpress, ...data.supportpal];
 
-      return bTime - aTime;
-    });
-  }, [wordpressConfirmed, supportpalConfirmed]);
+    return combined.reduce(
+      (accumulator, site) => {
+        const key =
+          typeof site.status === "string"
+            ? site.status.trim().toLowerCase()
+            : "";
 
-  const pendingItems = useMemo(() => {
-    const wordpressPending = data.wordpress
-      .filter((site) => !site.isConfirmed)
-      .map((site) => ({ ...site }));
-    const supportpalPending = data.supportpal
-      .filter((site) => !site.isConfirmed)
-      .map((site) => ({ ...site }));
+        if (!key) {
+          accumulator.unknown += 1;
+          return accumulator;
+        }
 
-    return [...wordpressPending, ...supportpalPending].sort((a, b) =>
-      a.name.localeCompare(b.name)
+        if (ATTENTION_STATUS_KEYS.has(key)) {
+          accumulator.needsAttention += 1;
+          return accumulator;
+        }
+
+        if (HEALTHY_STATUS_KEYS.has(key)) {
+          accumulator.operational += 1;
+          return accumulator;
+        }
+
+        accumulator.unknown += 1;
+        return accumulator;
+      },
+      { needsAttention: 0, operational: 0, unknown: 0 }
     );
   }, [data.supportpal, data.wordpress]);
 
-  const hasAnyData =
-    data.wordpress.length > 0 || data.supportpal.length > 0;
+  const totalTracked = data.wordpress.length + data.supportpal.length;
+  const totalConfirmed =
+    wordpressStats.confirmed + supportpalStats.confirmed;
+  const totalPending = Math.max(totalTracked - totalConfirmed, 0);
+  const percentComplete = totalTracked
+    ? Math.round((totalConfirmed / totalTracked) * 100)
+    : 0;
 
   return (
     <PageContainer
@@ -421,148 +396,96 @@ const DashboardPage = () => {
             </div>
           </section>
 
-          <section>
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Recent confirmed updates
-                </h2>
-                <p className="text-sm text-gray-600">
-                  WordPress confirmations reset weekly, while SupportPal confirmations reset monthly.
-                </p>
-              </div>
-            </div>
+          <section className="mt-8">
+            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Current cycle overview
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Track confirmation progress and quickly understand which environments may need follow-up.
+              </p>
 
-            {combinedConfirmed.length ? (
-              <ul className="mt-4 divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                {combinedConfirmed.map((item) => (
-                  <li
-                    key={`${item.type}-${item.id}`}
-                    className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            item.type === "WordPress"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-emerald-100 text-emerald-700"
-                          }`}
-                        >
-                          {item.type}
+              {totalTracked ? (
+                <div className="mt-6 grid gap-4 md:grid-cols-2">
+                  <ProgressSummaryCard
+                    label="WordPress"
+                    stats={wordpressStats}
+                  />
+                  <ProgressSummaryCard
+                    label="SupportPal"
+                    stats={supportpalStats}
+                  />
+                </div>
+              ) : (
+                <EmptyState message="No maintenance records are currently tracked." />
+              )}
+
+              {totalTracked > 0 && (
+                <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                  <div className="rounded-xl bg-slate-50 p-4">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                      Overall completion
+                    </p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900">
+                      {totalConfirmed} / {totalTracked}
+                    </p>
+                    <p className="text-sm text-slate-600">
+                      {percentComplete}% of systems confirmed this cycle
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-4">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                      Pending reviews
+                    </p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900">{totalPending}</p>
+                    <p className="text-sm text-slate-600">
+                      Awaiting confirmation on the next maintenance check
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-4">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                      Status snapshot
+                    </p>
+                    <ul className="mt-2 space-y-1 text-sm text-slate-600">
+                      <li className="flex items-center justify-between">
+                        <span>Operational</span>
+                        <span className="font-semibold text-slate-900">
+                          {statusOverview.operational}
                         </span>
-                        <h3 className="text-base font-semibold text-gray-900">
-                          {item.name}
-                        </h3>
-                      </div>
-                      {item.maintenanceNotes && (
-                        <p className="mt-1 text-sm text-gray-600">
-                          {item.maintenanceNotes}
-                        </p>
-                      )}
-                      {item.url && (
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-1 inline-flex text-sm text-[#316fb7] hover:underline"
-                        >
-                          {item.url}
-                        </a>
-                      )}
-                      <ChangeDetails
-                        details={item.changeDetails}
-                        // summary={item.changeSummary}
-                      />
-                    </div>
-                    <div className="flex flex-col items-start gap-2 text-sm text-gray-500 sm:items-end">
-                      <span
-                        className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(
-                          item.status
-                        )}`}
-                      >
-                        {formatStatusLabel(item.status)}
-                      </span>
-                      <span>
-                        Confirmed {formatDateTime(item.lastCheckedDate)}
-                      </span>
-                      {item.changeDetectedAt && (
-                        <span>
-                          Changes recorded {formatDateTime(item.changeDetectedAt)}
+                      </li>
+                      <li className="flex items-center justify-between">
+                        <span>Needs attention</span>
+                        <span className="font-semibold text-slate-900">
+                          {statusOverview.needsAttention}
                         </span>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyState message="No confirmed updates have been recorded for the current maintenance cycles yet." />
-            )}
+                      </li>
+                      <li className="flex items-center justify-between">
+                        <span>Unknown</span>
+                        <span className="font-semibold text-slate-900">
+                          {statusOverview.unknown}
+                        </span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
           </section>
 
-          <section>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">
-                Pending follow-up
-              </h2>
-              <p className="text-sm text-gray-600">
-                Websites and servers that still need to be reviewed and confirmed for this maintenance cycle.
+          <section className="mt-8">
+            <div className="rounded-2xl border border-dashed border-[#316fb7]/40 bg-[#f5f9ff] p-6 text-[#1f4c7a]">
+              <h2 className="text-lg font-semibold">Need deeper details?</h2>
+              <p className="mt-2 text-sm">
+                Review change logs, version breakdowns, and historical confirmations on the maintenance log page.
               </p>
+              <Link
+                href="/dashboard/history"
+                className="mt-4 inline-flex w-fit items-center gap-2 rounded-full bg-[#316fb7] px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#245c94]"
+              >
+                Open maintenance log
+                <span aria-hidden="true">→</span>
+              </Link>
             </div>
-
-            {pendingItems.length ? (
-              <ul className="mt-4 divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                {pendingItems.map((item) => (
-                  <li
-                    key={`pending-${item.type}-${item.id}`}
-                    className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            item.type === "WordPress"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-emerald-100 text-emerald-700"
-                          }`}
-                        >
-                          {item.type}
-                        </span>
-                        <h3 className="text-base font-semibold text-gray-900">
-                          {item.name}
-                        </h3>
-                      </div>
-                      {item.url && (
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-1 inline-flex text-sm text-[#316fb7] hover:underline"
-                        >
-                          {item.url}
-                        </a>
-                      )}
-                    </div>
-                    <div className="flex flex-col items-start gap-2 text-sm text-gray-500 sm:items-end">
-                      <span
-                        className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(
-                          item.status
-                        )}`}
-                      >
-                        {formatStatusLabel(item.status)}
-                      </span>
-                      <span>
-                        {item.lastCheckedDate
-                          ? `Last checked ${formatDateTime(item.lastCheckedDate)}`
-                          : "Awaiting first check"}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyState message="All tracked systems have been confirmed for the current maintenance schedules." />
-            )}
           </section>
         </>
       )}
