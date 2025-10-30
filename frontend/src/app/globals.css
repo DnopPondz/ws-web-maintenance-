@@ -1,2 +1,16 @@
 @import "tailwindcss";
 
+:root {
+  color-scheme: light;
+}
+
+body {
+  min-height: 100vh;
+  background-color: #f2f7ff;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
