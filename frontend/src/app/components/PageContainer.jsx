@@ -7,7 +7,6 @@ const mergeClassNames = (...classes) =>
 
 const PageContainer = ({
   title,
-  description,
   meta,
   actions,
   children,
@@ -38,7 +37,7 @@ const PageContainer = ({
       </div>
 
       <div className={innerClassName}>
-        {(meta || title || description || actions) && (
+        {(meta || title || actions) && (
           <div className="mb-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3">
               {meta && (
@@ -50,11 +49,6 @@ const PageContainer = ({
                 <h1 className="text-3xl font-semibold text-slate-900 sm:text-4xl">
                   {title}
                 </h1>
-              )}
-              {description && (
-                <p className="max-w-3xl text-base text-slate-600">
-                  {description}
-                </p>
               )}
             </div>
 
